@@ -312,6 +312,7 @@
 
     async function sendScore() {
         try {
+            navigator.vibrate(100);
             await fetch(`${serverBase}/api/score/referee/${referee}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
