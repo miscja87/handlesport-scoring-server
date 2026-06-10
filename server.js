@@ -3,10 +3,12 @@ import cors from "cors";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
-import { initScores, getScores, getStartScore, updateScore, deleteScore } from "./scores.js";
+import { initScores, getScores, updateScore, deleteScore } from "./scores.js";
 import { createMatch, updateMatchDetails, updateMatchState, getMatchState } from "./match.js";
 import { loginAsServer, createRefereeDoc, updateRefereeDoc, deleteRefereeDoc, auth } from "./firestore.js";
 import { ACTIONS } from "./constants.js";
+import { SPECIALTY_CONFIGURATION } from "./specialty.js";
+import { config } from "process";
 
 // dir name
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -21,6 +23,7 @@ let adminClient = null;
 let clients = [];
 let event = null;
 let ring = null;
+let specialtyCode = null;
 
 // admin stream
 app.get("/stream/admin", (req, res) => {
@@ -59,22 +62,24 @@ app.get("/stream/clients", (req, res) => {
 // Login as server (for Firestore access)
 app.post("/api/login/admin", async (req, res) => {
     try {
-        const { eventId, ringId, specialty, referees, startScore } = req.body;
+        const { eventId, ringId, specialty, referees } = req.body;
         
         validate(res, eventId, ringId);
         
         event = eventId;
         ring = ringId;
+        specialtyCode = specialty;
+
         console.log("Login server", event, ring);
         
         // Login to Firebase as server
         await loginAsServer(event, ring);
 
         // Initialize scores in memory
-        initScores(referees, startScore);
+        initScores(referees, SPECIALTY_CONFIGURATION[specialtyCode].startScore);
 
         // Create match
-        await createMatch(event, ring, specialty);
+        await createMatch(event, ring, specialtyCode);
 
         res.json({ ok: true, uid: auth.currentUser.uid, localIp: getLocalIP() });
     } catch (err) {
@@ -90,10 +95,12 @@ app.post("/api/login/referee", async (req, res) => {
 
     try {
         const { refereeId } = req.body;
+        const startScore = SPECIALTY_CONFIGURATION[specialtyCode].startScore;
+        const buttons = SPECIALTY_CONFIGURATION[specialtyCode].buttons;
         console.log("Login referee", event, ring, refereeId);
-        console.log("Creating referee document in Firestore with initial score", getStartScore());
-        await createRefereeDoc(event, ring, refereeId, { red: getStartScore(), blue: getStartScore() });
-        res.json({ ok: true });
+        console.log("Creating referee document in Firestore with initial score", startScore);
+        await createRefereeDoc(event, ring, refereeId, { red: startScore, blue: startScore });
+        res.json({ ok: true, configuration: { startScore : startScore, buttons : buttons } });
     } catch (err) {
         console.error("Login failed:", err);
         res.status(401).json({ ok: false, error: err.message });
@@ -139,6 +146,7 @@ app.delete("/api/score/referee/:id", async (req, res) => {
 
     const referee = parseInt(req.params.id);    
     const currentScores = getScores();
+    const startScore = SPECIALTY_CONFIGURATION[specialtyCode].startScore;
 
     if (!currentScores?.[referee]) {
         
@@ -146,7 +154,7 @@ app.delete("/api/score/referee/:id", async (req, res) => {
     }
 
     // delete score in memory
-    deleteScore(referee);
+    deleteScore(referee, startScore);
     
     // send score to admin
     broadcastAdmin({ referee: referee, score: currentScores[referee] });

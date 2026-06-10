@@ -369,7 +369,7 @@
     async function reloadScores() {
         try {
             const res = await fetch(`${serverBase}/api/score/referee/${referee}`);
-            if (!res.ok) throw new Error("Errore");
+            if (!res.ok) throw new Error("Error");
             const data = await res.json();
             scores.red  = parseFloat(data.score.red)  || 0;
             scores.blue = parseFloat(data.score.blue) || 0;

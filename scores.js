@@ -1,10 +1,8 @@
 // Initial state
 let scores = null;
-let startScore = null;
 
 export function initScores(referees, score) {
     scores = {};
-    startScore = score;
     for (let i = 1; i <= referees; i++) {
         scores[i] = { score: { red: score, blue: score }};
     }
@@ -15,11 +13,7 @@ export function getScores() {
     return scores;
 }
 
-export function getStartScore() {
-    return startScore;
-}
-
-export function deleteScore(refereeId) {
+export function deleteScore(refereeId, startScore) {
     scores[refereeId] = { red: startScore, blue: startScore };
 }
 
