@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Referee Scoring</title>
+    <link rel="icon" href="/favicon.ico">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background: #1a1f2e;
+            font-family: 'Arial', sans-serif;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .header {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px 0;
+            flex-shrink: 0;
+        }
+
+        .score-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-size: clamp(20px, 5vw, 32px);
+            font-weight: 900;
+            color: white;
+            letter-spacing: 1px;
+        }
+        .score-bar.red  { background: #cc0000; }
+        .score-bar.blue { background: #1a6fa8; }
+
+        .score-bar .undo-btn {
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.85);
+            font-size: clamp(16px, 3.5vw, 24px);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            line-height: 1;
+        }
+        .score-bar .undo-btn:active { color: white; }
+
+        .header-info {
+            text-align: center;
+            color: #a0aab8;
+            font-size: clamp(10px, 2vw, 13px);
+            line-height: 1.5;
+        }
+        .header-info .state { font-weight: 700; font-size: clamp(11px, 2.2vw, 14px); }
+        .header-info .state.stop    { color: #e53e3e; }
+        .header-info .state.running { color: #38a169; }
+
+        .score-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3px;
+            padding: 3px 0;
+            min-height: 0;
+        }
+        .score-grid.mode-3 { grid-template-rows: repeat(3, 1fr); }
+        .score-grid.mode-1 { grid-template-rows: 1fr; }
+
+        .score-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(28px, 7vw, 52px);
+            font-weight: 300;
+            color: rgba(255,255,255,0.9);
+            border: none;
+            cursor: pointer;
+            transition: filter 0.1s, transform 0.1s;
+            outline: none;
+        }
+        .score-btn.red  { background: #cc0000; }
+        .score-btn.blue { background: #1a6fa8; }
+        .score-btn:active { filter: brightness(1.2); transform: scale(0.98); }
+
+        .score-grid.mode-1 .btn-3,
+        .score-grid.mode-1 .btn-2 { display: none; }
+
+        .footer {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 3px;
+            padding: 3px 0 0 0;
+            flex-shrink: 0;
+        }
+        .footer-btn {
+            background: #2a7a2a;
+            border: none;
+            color: white;
+            padding: 14px 8px;
+            font-size: clamp(14px, 3vw, 20px);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: filter 0.1s;
+            outline: none;
+        }
+        .footer-btn:active { filter: brightness(1.3); }
+        .footer-btn.label {
+            font-size: clamp(12px, 2.5vw, 16px);
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .loading {
+            position: fixed;
+            inset: 0;
+            background: #1a1f2e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #a0aab8;
+            font-size: 16px;
+            z-index: 100;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 99;
+        }
+        .toast.show { opacity: 1; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="loading" id="loading">Connessione in corso...</div>
+
+    <div class="header hidden" id="mainHeader">
+        <!-- slot-left e slot-right contengono sempre il bar corretto -->
+        <div class="score-bar red" id="slotLeft">
+            <span id="scoreLeft">0</span>
+            <button class="undo-btn" id="undoLeft" title="Annulla">↺</button>
+        </div>
+        <div class="header-info">
+            <div id="headerLabel">Ring 1, Referee 1</div>
+            <div class="state stop" id="stateLabel">STATE: STOP</div>
+        </div>
+        <div class="score-bar blue" id="slotRight">
+            <span id="scoreRight">0</span>
+            <button class="undo-btn" id="undoRight" title="Annulla">↺</button>
+        </div>
+    </div>
+
+    <div class="score-grid mode-3 hidden" id="scoreGrid">
+        <button class="score-btn red  btn-3" id="btnL3">+ 3</button>
+        <button class="score-btn blue btn-3" id="btnR3">+ 3</button>
+        <button class="score-btn red  btn-2" id="btnL2">+ 2</button>
+        <button class="score-btn blue btn-2" id="btnR2">+ 2</button>
+        <button class="score-btn red  btn-1" id="btnL1">+ 1</button>
+        <button class="score-btn blue btn-1" id="btnR1">+ 1</button>
+    </div>
+
+    <div class="footer hidden" id="footer">
+        <button class="footer-btn" onclick="reloadScores()" title="Ricarica">↺</button>
+        <button class="footer-btn" onclick="swapColors()" title="Scambia colori">⇄</button>
+        <button class="footer-btn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
+        <button class="footer-btn label" id="modeBtn" onclick="toggleMode()">1 B</button>
+
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+<script>
+    const pathParts = window.location.pathname.split("/");
+    const referee = parseInt(pathParts[pathParts.length - 1]);
+    const serverBase = `http://${window.location.hostname}:${window.location.port}`;
+
+    // "left" e "right" sono i due lati visivi — indipendenti da rosso/blu
+    // leftColor = colore attualmente sul lato sinistro ("red" o "blue")
+    let leftColor = "red";
+    let scores = { red: 0, blue: 0 };
+    let history = { red: [], blue: [] };
+    let mode = 3;
+
+    // ── INIT ──
+    async function init() {
+        try {
+            const res = await fetch(`${serverBase}/api/score/referee/${referee}`);
+            if (!res.ok) throw new Error("Referee non trovato");
+            const data = await res.json();
+
+            scores.red  = parseFloat(data.score.red)  || 0;
+            scores.blue = parseFloat(data.score.blue) || 0;
+
+            document.getElementById("headerLabel").textContent = `Ring ${data.ring ?? 1}, Referee ${referee}`;
+
+            bindButtons();
+            updateDisplay();
+
+            document.getElementById("loading").classList.add("hidden");
+            document.getElementById("mainHeader").classList.remove("hidden");
+            document.getElementById("scoreGrid").classList.remove("hidden");
+            document.getElementById("footer").classList.remove("hidden");
+
+        } catch (err) {
+            document.getElementById("loading").textContent = `Errore: ${err.message}`;
+        }
+    }
+
+    // ── BIND BUTTONS ──
+    // Collega ogni bottone e undo al colore corretto in base a leftColor
+    function bindButtons() {
+        const rightColor = leftColor === "red" ? "blue" : "red";
+
+        // Undo
+        document.getElementById("undoLeft").onclick  = () => undoScore(leftColor);
+        document.getElementById("undoRight").onclick = () => undoScore(rightColor);
+
+        // Score buttons: colonne sinistre → leftColor, destre → rightColor
+        [1, 2, 3].forEach(pts => {
+            document.getElementById(`btnL${pts}`).onclick = () => addScore(leftColor,  pts);
+            document.getElementById(`btnR${pts}`).onclick = () => addScore(rightColor, pts);
+        });
+    }
+
+    // ── UPDATE DISPLAY ──
+    function updateDisplay() {
+        const rightColor = leftColor === "red" ? "blue" : "red";
+
+        // Aggiorna punteggi
+        document.getElementById("scoreLeft").textContent  = scores[leftColor];
+        document.getElementById("scoreRight").textContent = scores[rightColor];
+
+        // Aggiorna colori slot
+        const slotLeft  = document.getElementById("slotLeft");
+        const slotRight = document.getElementById("slotRight");
+        slotLeft.className  = `score-bar ${leftColor}`;
+        slotRight.className = `score-bar ${rightColor}`;
+
+        // Aggiorna colori bottoni griglia
+        ["L", "R"].forEach((side, i) => {
+            const color = i === 0 ? leftColor : rightColor;
+            [1, 2, 3].forEach(pts => {
+                const btn = document.getElementById(`btn${side}${pts}`);
+                btn.className = `score-btn ${color} btn-${pts}`;
+            });
+        });
+    }
+
+    // ── SWAP ──
+    function swapColors() {
+        leftColor = leftColor === "red" ? "blue" : "red";
+        bindButtons();
+        updateDisplay();
+        sendScore();
+    }
+
+    // ── SCORE ──
+    async function addScore(color, points) {
+        history[color].push(scores[color]);
+        scores[color] = parseFloat((scores[color] + points).toFixed(1));
+        updateDisplay();
+        await sendScore();
+    }
+
+    async function undoScore(color) {
+        if (history[color].length === 0) {
+            showToast("Nessuna azione da annullare");
+            return;
+        }
+        scores[color] = history[color].pop();
+        updateDisplay();
+        await sendScore();
+    }
+
+    async function reloadScores() {
+        try {
+            const res = await fetch(`${serverBase}/api/score/referee/${referee}`);
+            if (!res.ok) throw new Error("Errore");
+            const data = await res.json();
+            scores.red  = parseFloat(data.score.red)  || 0;
+            scores.blue = parseFloat(data.score.blue) || 0;
+            history.red  = [];
+            history.blue = [];
+            updateDisplay();
+            showToast("Punteggi aggiornati");
+        } catch (err) {
+            showToast("Errore nel recupero punteggi");
+        }
+    }
+
+    async function sendScore() {
+        try {
+            await fetch(`${serverBase}/api/score/referee/${referee}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "update_score",
+                    score: { red: String(scores.red), blue: String(scores.blue) }
+                })
+            });
+        } catch (err) {
+            showToast("Errore invio punteggio");
+        }
+    }
+
+    // ── MODE ──
+    function toggleMode() {
+        const grid = document.getElementById("scoreGrid");
+        const btn  = document.getElementById("modeBtn");
+        if (mode === 3) {
+            mode = 1;
+            grid.classList.replace("mode-3", "mode-1");
+            btn.textContent = "3 B";
+        } else {
+            mode = 3;
+            grid.classList.replace("mode-1", "mode-3");
+            btn.textContent = "1 B";
+        }
+    }
+
+    // ── UI HELPERS ──
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+        else document.exitFullscreen();
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById("toast");
+        toast.textContent = msg;
+        toast.classList.add("show");
+        setTimeout(() => toast.classList.remove("show"), 2000);
+    }
+
+    window.addEventListener("load", init);
+</script>
+
+</body>
+</html>

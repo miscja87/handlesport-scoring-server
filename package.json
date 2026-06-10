@@ -1,0 +1,30 @@
+{
+    "name": "handlesport",
+    "version": "1.0.0",
+    "description": "HandleSport Scoring System",
+    "author": "Mikhail Vorontsov",
+    "main": "main.cjs",
+    "type": "module",
+    "scripts": {
+        "start": "electron .",
+        "dist": "electron-builder"
+    },
+    "dependencies": {
+        "cors": "^2.8.6",
+        "express": "^5.2.1",
+        "firebase": "^12.14.0"
+    },
+    "build": {
+        "appId": "com.handlesport.app",
+        "productName": "HandleSport",
+        "directories": {
+            "output": "dist"
+        },
+        "win": {
+            "target": "nsis"
+        }
+    },
+    "devDependencies": {
+        "electron-builder": "^26.15.0"
+    }
+}
