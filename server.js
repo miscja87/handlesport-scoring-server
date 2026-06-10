@@ -4,8 +4,9 @@ import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { initScores, getScores, getStartScore, updateScore, deleteScore } from "./scores.js";
-import { createMatch, updateMatchDetails, updateMatchState } from "./match.js";
-import { loginAsServer, createRefereeDoc, updateRefereeDoc, deleteRefereeDoc, createStatus, updateStatus, createDetails, auth } from "./firestore.js";
+import { createMatch, updateMatchDetails, updateMatchState, getMatchState } from "./match.js";
+import { loginAsServer, createRefereeDoc, updateRefereeDoc, deleteRefereeDoc, auth } from "./firestore.js";
+import { ACTIONS } from "./constants.js";
 
 // dir name
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -118,6 +119,12 @@ app.post("/api/score/referee/:id", (req, res) => {
     
     // send score to admin
     broadcastAdmin({ referee: referee, score: updated.score, action: updated.action });
+    
+    // send score to clients only if reset_score
+    if (updated.action === ACTIONS.RESET_SCORE) {
+        
+        broadcastClients({ referee: referee, score: updated.score, action: updated.action });
+    }
 
     // save score in Firestore
     updateRefereeDoc(event, ring, referee, updated );
@@ -164,6 +171,16 @@ app.get("/api/score/referee/:id", (req, res) => {
     res.json(currentScores[referee]);
 });
 
+// Get match status
+app.get("/api/match/status", (req, res) => {
+    
+    validate(res, event, ring);
+
+    const state = getMatchState();
+
+    res.json({ state });
+});
+
 // Update match status
 app.post("/api/match/status", (req, res) => {
     
@@ -174,6 +191,9 @@ app.post("/api/match/status", (req, res) => {
 
     // update status in Firestore
     updateMatchState(event, ring, state);
+
+    // send status to clients
+    broadcastClients({ action: ACTIONS.UPDATE_STATE, state: state });
     
     res.json({ ok: true });
 });

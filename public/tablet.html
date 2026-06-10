@@ -62,7 +62,7 @@
         }
         .header-info .state { font-weight: 700; font-size: clamp(11px, 2.2vw, 14px); }
         .header-info .state.stop    { color: #e53e3e; }
-        .header-info .state.running { color: #38a169; }
+        .header-info .state.play { color: #38a169; }
 
         .score-grid {
             flex: 1;
@@ -93,6 +93,11 @@
 
         .score-grid.mode-1 .btn-3,
         .score-grid.mode-1 .btn-2 { display: none; }
+
+        .score-grid.disabled .score-btn {
+            opacity: 0.4;
+            pointer-events: none;
+        }
 
         .footer {
             display: grid;
@@ -164,7 +169,7 @@
         </div>
         <div class="header-info">
             <div id="headerLabel">Ring 1, Referee 1</div>
-            <div class="state stop" id="stateLabel">STATE: STOP</div>
+            <div class="state stop" id="stateLabel">STOP</div>
         </div>
         <div class="score-bar blue" id="slotRight">
             <span id="scoreRight">0</span>
@@ -172,7 +177,7 @@
         </div>
     </div>
 
-    <div class="score-grid mode-3 hidden" id="scoreGrid">
+    <div class="score-grid mode-3 hidden disabled" id="scoreGrid">
         <button class="score-btn red  btn-3" id="btnL3">+ 3</button>
         <button class="score-btn blue btn-3" id="btnR3">+ 3</button>
         <button class="score-btn red  btn-2" id="btnL2">+ 2</button>
@@ -196,12 +201,18 @@
     const referee = parseInt(pathParts[pathParts.length - 1]);
     const serverBase = `http://${window.location.hostname}:${window.location.port}`;
 
+    /* Score params */
+    const ACTION_UPDATE_SCORE = "update_score";
+    const ACTION_RESET_SCORE = "reset_score";
+    const ACTION_UPDATE_STATE = "update_state";
+
     // "left" e "right" sono i due lati visivi — indipendenti da rosso/blu
     // leftColor = colore attualmente sul lato sinistro ("red" o "blue")
     let leftColor = "red";
     let scores = { red: 0, blue: 0 };
     let history = { red: [], blue: [] };
     let mode = 3;
+    let state = "stop"; // "stop" | "play"
 
     // ── INIT ──
     async function init() {
@@ -217,11 +228,39 @@
 
             bindButtons();
             updateDisplay();
+            await fetchState();
 
             document.getElementById("loading").classList.add("hidden");
             document.getElementById("mainHeader").classList.remove("hidden");
             document.getElementById("scoreGrid").classList.remove("hidden");
             document.getElementById("footer").classList.remove("hidden");
+
+            const eventSource = new EventSource(
+                "http://192.168.0.35:8080/stream/clients"
+            );
+
+            console.log("Event stream initialized on http://192.168.0.35:8080/stream/clients");
+
+            eventSource.onmessage = (event) => {
+
+                const data = JSON.parse(event.data);
+            
+                console.log("Event received:", data);
+
+                // Check on referee reset score
+                if (data.referee === referee && data.action && data.action === ACTION_RESET_SCORE) {
+                    scores.red  = parseFloat(data.score.red)  || 0;
+                    scores.blue = parseFloat(data.score.blue) || 0;
+                    history.red  = [];
+                    history.blue = [];
+                    updateDisplay();
+                    showToast("Score updated from server");                    
+                }
+
+                if (data.action && data.action === ACTION_UPDATE_STATE) {
+                    applyState(data.state);
+                } 
+            };
 
         } catch (err) {
             document.getElementById("loading").textContent = `Errore: ${err.message}`;
@@ -268,7 +307,32 @@
         });
     }
 
-    // ── SWAP ──
+    // ── FETCH STATE ──
+    async function fetchState() {
+        try {
+            const res = await fetch(`${serverBase}/api/match/status`);
+            if (!res.ok) throw new Error("Errore");
+            const data = await res.json();
+            applyState(data.state);
+        } catch (err) {
+            console.error("Errore recupero stato:", err);
+        }
+    }
+
+    function applyState(newState) {
+        state = newState;
+        const stateLabel = document.getElementById("stateLabel");
+        const scoreGrid  = document.getElementById("scoreGrid");
+        if (state === "play") {
+            stateLabel.textContent = "PLAY";
+            stateLabel.className = "state play";
+            scoreGrid.classList.remove("disabled");
+        } else {
+            stateLabel.textContent = "STOP";
+            stateLabel.className = "state stop";
+            scoreGrid.classList.add("disabled");
+        }
+    }
     function swapColors() {
         leftColor = leftColor === "red" ? "blue" : "red";
         bindButtons();
@@ -278,6 +342,10 @@
 
     // ── SCORE ──
     async function addScore(color, points) {
+        if (state === "stop") {
+            showToast("Punteggio bloccato — stato STOP");
+            return;
+        }
         history[color].push(scores[color]);
         scores[color] = parseFloat((scores[color] + points).toFixed(1));
         updateDisplay();
@@ -285,6 +353,10 @@
     }
 
     async function undoScore(color) {
+        if (state === "stop") {
+            showToast("Punteggio bloccato — stato STOP");
+            return;
+        }
         if (history[color].length === 0) {
             showToast("Nessuna azione da annullare");
             return;
@@ -304,6 +376,7 @@
             history.red  = [];
             history.blue = [];
             updateDisplay();
+            await fetchState();
             showToast("Punteggi aggiornati");
         } catch (err) {
             showToast("Errore nel recupero punteggi");
@@ -317,7 +390,7 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    action: "update_score",
+                    action: ACTION_UPDATE_SCORE,
                     score: { red: String(scores.red), blue: String(scores.blue) }
                 })
             });

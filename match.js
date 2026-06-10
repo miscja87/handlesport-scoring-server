@@ -1,38 +1,32 @@
 import { createStatus, updateStatus, createDetails, updateDetails } from "./firestore.js";
+import { STATUS, COLORS, DEFAULT_PHOTO } from "./constants.js";
 
 // Initial state
 let match = null;
-
-// Constants
-const STOP_STATUS = "stop";
-const PLAY_STATUS = "play";
-const COLOR_RED = "RED";
-const COLOR_BLUE = "BLUE";
-const PLAYER_PHOTO = "default.png";
 
 export async function createMatch(event, ring, specialty) {
 
     // Set initial match state
     match = {
-        state : STOP_STATUS,
+        state : STATUS.STOP,
         details: {
             category: "",
             specialty: specialty,
             red: {
-                name: COLOR_RED,
+                name: COLORS.RED,
                 country: "",
-                photo: PLAYER_PHOTO,
+                photo: DEFAULT_PHOTO,
             },
             blue: {
-                name: COLOR_BLUE,
+                name: COLORS.BLUE,
                 country: "",
-                photo: PLAYER_PHOTO,
+                photo: DEFAULT_PHOTO,
             }
         }
     };
 
     // Create status document in Firestore
-    await createStatus(event, ring, STOP_STATUS);
+    await createStatus(event, ring, STATUS.STOP);
 
     // Create details document in Firestore
     await createDetails(event, ring, match.details);    
@@ -46,6 +40,11 @@ export async function updateMatchState(event, ring, newState) {
 
     // Update status document in Firestore
     await updateStatus(event, ring, { state: match.state });
+}
+
+export function getMatchState() {
+
+    return match ? match.state : null;
 }
 
 export async function updateMatchDetails(event, ring, newDetails) {
