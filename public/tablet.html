@@ -178,12 +178,7 @@
     </div>
 
     <div class="score-grid mode-3 hidden disabled" id="scoreGrid">
-        <button class="score-btn red  btn-3" id="btnL3">+ 3</button>
-        <button class="score-btn blue btn-3" id="btnR3">+ 3</button>
-        <button class="score-btn red  btn-2" id="btnL2">+ 2</button>
-        <button class="score-btn blue btn-2" id="btnR2">+ 2</button>
-        <button class="score-btn red  btn-1" id="btnL1">+ 1</button>
-        <button class="score-btn blue btn-1" id="btnR1">+ 1</button>
+        <!-- bottoni generati dinamicamente da renderButtons() -->
     </div>
 
     <div class="footer hidden" id="footer">
@@ -212,20 +207,27 @@
     let scores = { red: 0, blue: 0 };
     let history = { red: [], blue: [] };
     let mode = 3;
-    let state = "stop"; // "stop" | "play"
+    let state = "stop";
+    let buttons = [3, 2, 1]; // default, sovrascritto dal login
 
     // ── INIT ──
     async function init() {
         try {
-            const res = await fetch(`${serverBase}/api/score/referee/${referee}`);
-            if (!res.ok) throw new Error("Referee non trovato");
+            const res = await fetch(`${serverBase}/api/login/referee`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ refereeId: referee })
+            });
+            if (!res.ok) throw new Error("Login fallito");
             const data = await res.json();
 
-            scores.red  = parseFloat(data.score.red)  || 0;
-            scores.blue = parseFloat(data.score.blue) || 0;
+            scores.red  = parseFloat(data.score?.score?.red)  || 0;
+            scores.blue = parseFloat(data.score?.score?.blue) || 0;
+            buttons = data.configuration?.buttons ?? [3, 2, 1];
 
-            document.getElementById("headerLabel").textContent = `Ring ${data.ring ?? 1}, Referee ${referee}`;
+            document.getElementById("headerLabel").textContent = `Ring 1, Referee ${referee}`;
 
+            renderButtons(buttons);
             bindButtons();
             updateDisplay();
             await fetchState();
@@ -235,31 +237,30 @@
             document.getElementById("scoreGrid").classList.remove("hidden");
             document.getElementById("footer").classList.remove("hidden");
 
-            const eventSource = new EventSource(
-                "http://192.168.0.35:8080/stream/clients"
-            );
+            // Aggiorna mode-N in base al numero di bottoni
+            const grid = document.getElementById("scoreGrid");
+            grid.classList.remove("mode-1", "mode-3");
+            grid.classList.add(buttons.length === 1 ? "mode-1" : "mode-3");
 
-            console.log("Event stream initialized on http://192.168.0.35:8080/stream/clients");
+            const eventSource = new EventSource(`${serverBase}/stream/clients`);
+            console.log("Event stream initialized on", `${serverBase}/stream/clients`);
 
             eventSource.onmessage = (event) => {
-
                 const data = JSON.parse(event.data);
-            
                 console.log("Event received:", data);
 
-                // Check on referee reset score
-                if (data.referee === referee && data.action && data.action === ACTION_RESET_SCORE) {
+                if (data.referee === referee && data.action === ACTION_RESET_SCORE) {
                     scores.red  = parseFloat(data.score.red)  || 0;
                     scores.blue = parseFloat(data.score.blue) || 0;
                     history.red  = [];
                     history.blue = [];
                     updateDisplay();
-                    showToast("Score updated from server");                    
+                    showToast("Score updated from server");
                 }
 
-                if (data.action && data.action === ACTION_UPDATE_STATE) {
+                if (data.action === ACTION_UPDATE_STATE) {
                     applyState(data.state);
-                } 
+                }
             };
 
         } catch (err) {
@@ -267,19 +268,43 @@
         }
     }
 
+    // ── RENDER BUTTONS ──
+    function renderButtons(btns) {
+        const grid = document.getElementById("scoreGrid");
+        grid.innerHTML = "";
+
+        btns.forEach((val, i) => {
+            const label = val > 0 ? `+ ${val}` : `${val}`;
+            const idx = i + 1;
+
+            const btnL = document.createElement("button");
+            btnL.className = `score-btn red btn-${idx}`;
+            btnL.id = `btnL${idx}`;
+            btnL.textContent = label;
+            grid.appendChild(btnL);
+
+            const btnR = document.createElement("button");
+            btnR.className = `score-btn blue btn-${idx}`;
+            btnR.id = `btnR${idx}`;
+            btnR.textContent = label;
+            grid.appendChild(btnR);
+        });
+
+        // Aggiorna CSS grid rows in base al numero di bottoni
+        grid.style.gridTemplateRows = `repeat(${btns.length}, 1fr)`;
+    }
+
     // ── BIND BUTTONS ──
-    // Collega ogni bottone e undo al colore corretto in base a leftColor
     function bindButtons() {
         const rightColor = leftColor === "red" ? "blue" : "red";
 
-        // Undo
         document.getElementById("undoLeft").onclick  = () => undoScore(leftColor);
         document.getElementById("undoRight").onclick = () => undoScore(rightColor);
 
-        // Score buttons: colonne sinistre → leftColor, destre → rightColor
-        [1, 2, 3].forEach(pts => {
-            document.getElementById(`btnL${pts}`).onclick = () => addScore(leftColor,  pts);
-            document.getElementById(`btnR${pts}`).onclick = () => addScore(rightColor, pts);
+        buttons.forEach((val, i) => {
+            const idx = i + 1;
+            document.getElementById(`btnL${idx}`).onclick = () => addScore(leftColor,  val);
+            document.getElementById(`btnR${idx}`).onclick = () => addScore(rightColor, val);
         });
     }
 
@@ -287,23 +312,18 @@
     function updateDisplay() {
         const rightColor = leftColor === "red" ? "blue" : "red";
 
-        // Aggiorna punteggi
         document.getElementById("scoreLeft").textContent  = scores[leftColor];
         document.getElementById("scoreRight").textContent = scores[rightColor];
 
-        // Aggiorna colori slot
         const slotLeft  = document.getElementById("slotLeft");
         const slotRight = document.getElementById("slotRight");
         slotLeft.className  = `score-bar ${leftColor}`;
         slotRight.className = `score-bar ${rightColor}`;
 
-        // Aggiorna colori bottoni griglia
-        ["L", "R"].forEach((side, i) => {
-            const color = i === 0 ? leftColor : rightColor;
-            [1, 2, 3].forEach(pts => {
-                const btn = document.getElementById(`btn${side}${pts}`);
-                btn.className = `score-btn ${color} btn-${pts}`;
-            });
+        buttons.forEach((val, i) => {
+            const idx = i + 1;
+            document.getElementById(`btnL${idx}`).className = `score-btn ${leftColor} btn-${idx}`;
+            document.getElementById(`btnR${idx}`).className = `score-btn ${rightColor} btn-${idx}`;
         });
     }
 
@@ -403,13 +423,25 @@
     function toggleMode() {
         const grid = document.getElementById("scoreGrid");
         const btn  = document.getElementById("modeBtn");
-        if (mode === 3) {
+        if (mode === buttons.length) {
             mode = 1;
-            grid.classList.replace("mode-3", "mode-1");
-            btn.textContent = "3 B";
+            // Nascondi tutti tranne l'ultimo
+            buttons.forEach((val, i) => {
+                const idx = i + 1;
+                const show = idx === buttons.length;
+                document.getElementById(`btnL${idx}`).style.display = show ? "" : "none";
+                document.getElementById(`btnR${idx}`).style.display = show ? "" : "none";
+            });
+            grid.style.gridTemplateRows = "1fr";
+            btn.textContent = `${buttons.length} B`;
         } else {
-            mode = 3;
-            grid.classList.replace("mode-1", "mode-3");
+            mode = buttons.length;
+            buttons.forEach((val, i) => {
+                const idx = i + 1;
+                document.getElementById(`btnL${idx}`).style.display = "";
+                document.getElementById(`btnR${idx}`).style.display = "";
+            });
+            grid.style.gridTemplateRows = `repeat(${buttons.length}, 1fr)`;
             btn.textContent = "1 B";
         }
     }

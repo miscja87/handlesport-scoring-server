@@ -97,10 +97,11 @@ app.post("/api/login/referee", async (req, res) => {
         const { refereeId } = req.body;
         const startScore = SPECIALTY_CONFIGURATION[specialtyCode].startScore;
         const buttons = SPECIALTY_CONFIGURATION[specialtyCode].buttons;
+        const currentScores = getScores();
         console.log("Login referee", event, ring, refereeId);
         console.log("Creating referee document in Firestore with initial score", startScore);
         await createRefereeDoc(event, ring, refereeId, { red: startScore, blue: startScore });
-        res.json({ ok: true, configuration: { startScore : startScore, buttons : buttons } });
+        res.json({ ok: true, score: currentScores[refereeId], configuration: { startScore : startScore, buttons : buttons } });
     } catch (err) {
         console.error("Login failed:", err);
         res.status(401).json({ ok: false, error: err.message });
