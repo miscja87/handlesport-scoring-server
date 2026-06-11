@@ -38,21 +38,24 @@
             font-weight: 900;
             color: white;
             letter-spacing: 1px;
+            cursor: pointer;
+            transition: filter 0.1s;
         }
+        .score-bar:active { filter: brightness(1.2); }
         .score-bar.red  { background: #cc0000; }
         .score-bar.blue { background: #1a6fa8; }
 
-        .score-bar .undo-btn {
-            background: none;
-            border: none;
-            color: rgba(255,255,255,0.85);
-            font-size: clamp(16px, 3.5vw, 24px);
-            cursor: pointer;
-            padding: 4px;
-            border-radius: 4px;
+        .undo-icon {
+            font-size: clamp(14px, 3vw, 20px);
+            opacity: 0.75;
             line-height: 1;
         }
-        .score-bar .undo-btn:active { color: white; }
+
+        .undo-icon {
+            font-size: clamp(14px, 3vw, 20px);
+            opacity: 0.75;
+            pointer-events: none;
+        }
 
         .header-info {
             text-align: center;
@@ -165,7 +168,7 @@
         <!-- slot-left e slot-right contengono sempre il bar corretto -->
         <div class="score-bar red" id="slotLeft">
             <span id="scoreLeft">0</span>
-            <button class="undo-btn" id="undoLeft" title="Annulla">↺</button>
+            <span class="undo-icon">↺</span>
         </div>
         <div class="header-info">
             <div id="headerLabel">Ring 1, Referee 1</div>
@@ -173,7 +176,7 @@
         </div>
         <div class="score-bar blue" id="slotRight">
             <span id="scoreRight">0</span>
-            <button class="undo-btn" id="undoRight" title="Annulla">↺</button>
+            <span class="undo-icon">↺</span>
         </div>
     </div>
 
@@ -208,7 +211,8 @@
     let history = { red: [], blue: [] };
     let mode = 3;
     let state = "stop";
-    let buttons = [3, 2, 1]; // default, sovrascritto dal login
+    let buttons = [3, 2, 1];
+    let defaultButton = 1;
 
     // ── INIT ──
     async function init() {
@@ -224,6 +228,7 @@
             scores.red  = parseFloat(data.score?.score?.red)  || 0;
             scores.blue = parseFloat(data.score?.score?.blue) || 0;
             buttons = data.configuration?.buttons ?? [3, 2, 1];
+            defaultButton = data.configuration?.defaultButton ?? buttons[buttons.length - 1];
 
             document.getElementById("headerLabel").textContent = `Ring 1, Referee ${referee}`;
 
@@ -298,8 +303,8 @@
     function bindButtons() {
         const rightColor = leftColor === "red" ? "blue" : "red";
 
-        document.getElementById("undoLeft").onclick  = () => undoScore(leftColor);
-        document.getElementById("undoRight").onclick = () => undoScore(rightColor);
+        document.getElementById("slotLeft").onclick  = () => undoScore(leftColor);
+        document.getElementById("slotRight").onclick = () => undoScore(rightColor);
 
         buttons.forEach((val, i) => {
             const idx = i + 1;
@@ -425,10 +430,9 @@
         const btn  = document.getElementById("modeBtn");
         if (mode === buttons.length) {
             mode = 1;
-            // Nascondi tutti tranne l'ultimo
             buttons.forEach((val, i) => {
                 const idx = i + 1;
-                const show = idx === buttons.length;
+                const show = val === defaultButton;
                 document.getElementById(`btnL${idx}`).style.display = show ? "" : "none";
                 document.getElementById(`btnR${idx}`).style.display = show ? "" : "none";
             });
