@@ -94,7 +94,7 @@ app.post("/api/login/referee", async (req, res) => {
     validate(res, event, ring);
 
     try {
-        const { refereeId, token } = req.body;
+        const { refereeId, token, code } = req.body;
         const currentScores = getScores();
         const referee = currentScores?.[refereeId];
 
@@ -103,9 +103,12 @@ app.post("/api/login/referee", async (req, res) => {
             return res.status(404).json({ error: `Referee with id ${refereeId} not found` });
         }
 
-        if (referee.token !== token) {
+        const validToken = token && referee.token === token;
+        const validCode  = code  && referee.code  === code;
+
+        if (!validToken && !validCode) {
             
-            return res.status(401).json({ error: "Token not valid" });
+            return res.status(401).json({ error: "Invalid token or code" });
         }
 
         const startScore = SPECIALTY_CONFIGURATION[specialtyCode].startScore;
@@ -115,7 +118,7 @@ app.post("/api/login/referee", async (req, res) => {
         console.log("Login referee", event, ring, refereeId);
         console.log("Creating referee document in Firestore with initial score", startScore);
         await createRefereeDoc(event, ring, refereeId, { red: startScore, blue: startScore });
-        res.json({ ok: true, score: referee, configuration: { startScore : startScore, buttons : buttons, defaultButton : defaultButton } });
+        res.json({ ok: true, score: referee.score, configuration: { ring, startScore : startScore, buttons : buttons, defaultButton : defaultButton } });
     } catch (err) {
         console.error("Login failed:", err);
         res.status(401).json({ ok: false, error: err.message });
@@ -149,7 +152,7 @@ app.post("/api/score/referee/:id", (req, res) => {
     }
 
     // save score in Firestore
-    updateRefereeDoc(event, ring, referee, updated );
+    updateRefereeDoc(event, ring, referee, { score: updated.score, action: updated.action } );
     
     res.json({ ok: true });
 });

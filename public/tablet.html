@@ -223,12 +223,13 @@
             if (!res.ok) throw new Error("Login failed");
             const data = await res.json();
 
-            scores.red  = parseFloat(data.score?.score?.red)  || 0;
-            scores.blue = parseFloat(data.score?.score?.blue) || 0;
+            scores.red  = parseFloat(data.score?.red)  || 0;
+            scores.blue = parseFloat(data.score?.blue) || 0;
             buttons = data.configuration?.buttons ?? [3, 2, 1];
             defaultButton = data.configuration?.defaultButton ?? buttons[buttons.length - 1];
+            const ring = data.configuration?.ring ?? 1;
 
-            document.getElementById("headerLabel").textContent = `Ring 1, Referee ${referee}`;
+            document.getElementById("headerLabel").textContent = `Ring ${ring}, Referee ${referee}`;
 
             renderButtons(buttons);
             bindButtons();
