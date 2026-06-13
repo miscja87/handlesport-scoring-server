@@ -94,15 +94,28 @@ app.post("/api/login/referee", async (req, res) => {
     validate(res, event, ring);
 
     try {
-        const { refereeId } = req.body;
+        const { refereeId, token } = req.body;
+        const currentScores = getScores();
+        const referee = currentScores?.[refereeId];
+
+        if (!referee) {
+            
+            return res.status(404).json({ error: `Referee with id ${refereeId} not found` });
+        }
+
+        if (referee.token !== token) {
+            
+            return res.status(401).json({ error: "Token not valid" });
+        }
+
         const startScore = SPECIALTY_CONFIGURATION[specialtyCode].startScore;
         const buttons = SPECIALTY_CONFIGURATION[specialtyCode].buttons;
         const defaultButton = SPECIALTY_CONFIGURATION[specialtyCode].defaultButton;
-        const currentScores = getScores();
+
         console.log("Login referee", event, ring, refereeId);
         console.log("Creating referee document in Firestore with initial score", startScore);
         await createRefereeDoc(event, ring, refereeId, { red: startScore, blue: startScore });
-        res.json({ ok: true, score: currentScores[refereeId], configuration: { startScore : startScore, buttons : buttons, defaultButton : defaultButton } });
+        res.json({ ok: true, score: referee, configuration: { startScore : startScore, buttons : buttons, defaultButton : defaultButton } });
     } catch (err) {
         console.error("Login failed:", err);
         res.status(401).json({ ok: false, error: err.message });

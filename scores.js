@@ -1,10 +1,15 @@
+import { v4 as uuidv4 } from "uuid";
+
 // Initial state
 let scores = null;
 
 export function initScores(referees, score) {
     scores = {};
     for (let i = 1; i <= referees; i++) {
-        scores[i] = { score: { red: score, blue: score }};
+        scores[i] = {
+            score: { red: score, blue: score },
+            token: uuidv4()
+        };
     }
     console.log("Score initialized:", scores);
 }

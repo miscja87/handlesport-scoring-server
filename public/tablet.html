@@ -162,7 +162,7 @@
 </head>
 <body>
 
-    <div class="loading" id="loading">Connessione in corso...</div>
+    <div class="loading" id="loading">Connecting...</div>
 
     <div class="header hidden" id="mainHeader">
         <!-- slot-left e slot-right contengono sempre il bar corretto -->
@@ -197,6 +197,7 @@
 <script>
     const pathParts = window.location.pathname.split("/");
     const referee = parseInt(pathParts[pathParts.length - 1]);
+    const token = new URLSearchParams(window.location.search).get("token");
     const serverBase = `http://${window.location.hostname}:${window.location.port}`;
 
     /* Score params */
@@ -217,12 +218,14 @@
     // ── INIT ──
     async function init() {
         try {
+            if (!token) throw new Error("Missing token");
+
             const res = await fetch(`${serverBase}/api/login/referee`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ refereeId: referee })
+                body: JSON.stringify({ refereeId: referee, token })
             });
-            if (!res.ok) throw new Error("Login fallito");
+            if (!res.ok) throw new Error("Login failed");
             const data = await res.json();
 
             scores.red  = parseFloat(data.score?.score?.red)  || 0;
@@ -269,7 +272,7 @@
             };
 
         } catch (err) {
-            document.getElementById("loading").textContent = `Errore: ${err.message}`;
+            document.getElementById("loading").textContent = `Error: ${err.message}`;
         }
     }
 

@@ -12,7 +12,8 @@
     "dependencies": {
         "cors": "^2.8.6",
         "express": "^5.2.1",
-        "firebase": "^12.14.0"
+        "firebase": "^12.14.0",
+        "uuid": "^14.0.0"
     },
     "build": {
         "appId": "com.handlesport.app",
