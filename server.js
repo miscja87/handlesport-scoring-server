@@ -194,6 +194,20 @@ app.get("/api/score/referee/:id", (req, res) => {
     res.json(currentScores[referee]);
 });
 
+// Referee url
+app.get("/api/tablet/url/:refereeId", (req, res) => {
+    
+    const { refereeId } = req.params;
+
+    const currentScores = getScores();
+    const referee = currentScores?.[refereeId];
+    if (!referee) return res.status(404).json({ error: `Referee ${refereeId} not found` });
+
+    const url = `http://${getLocalIP()}:8080/tablet/${refereeId}?token=${referee.token}`;
+
+    res.json({ ok: true, refereeId, url });
+});
+
 // Get match status
 app.get("/api/match/status", (req, res) => {
     

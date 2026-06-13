@@ -49,11 +49,6 @@
             font-size: clamp(14px, 3vw, 20px);
             opacity: 0.75;
             line-height: 1;
-        }
-
-        .undo-icon {
-            font-size: clamp(14px, 3vw, 20px);
-            opacity: 0.75;
             pointer-events: none;
         }
 
@@ -165,7 +160,7 @@
     <div class="loading" id="loading">Connecting...</div>
 
     <div class="header hidden" id="mainHeader">
-        <!-- slot-left e slot-right contengono sempre il bar corretto -->
+        <!-- slot-left and slot-right always hold the correct color bar -->
         <div class="score-bar red" id="slotLeft">
             <span id="scoreLeft">0</span>
             <span class="undo-icon">↺</span>
@@ -205,8 +200,8 @@
     const ACTION_RESET_SCORE = "reset_score";
     const ACTION_UPDATE_STATE = "update_state";
 
-    // "left" e "right" sono i due lati visivi — indipendenti da rosso/blu
-    // leftColor = colore attualmente sul lato sinistro ("red" o "blue")
+    // "left" and "right" are the two visual sides — independent from red/blue
+    // leftColor = color currently on the left side ("red" or "blue")
     let leftColor = "red";
     let scores = { red: 0, blue: 0 };
     let history = { red: [], blue: [] };
