@@ -3,19 +3,12 @@ import { v4 as uuidv4 } from "uuid";
 // Initial state
 let scores = null;
 
-function generateCode() {
-    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    return Array.from({ length: 5 }, () => letters[Math.floor(Math.random() * 26)]).join("");
-}
-
 export function initScores(referees, score) {
     scores = {};
     for (let i = 1; i <= referees; i++) {
-        const token = uuidv4();
         scores[i] = {
             score: { red: score, blue: score },
-            token: uuidv4(),
-            code: generateCode(),
+            token: uuidv4()
         };
     }
     console.log("Score initialized:", scores);

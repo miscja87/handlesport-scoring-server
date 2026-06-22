@@ -24,6 +24,7 @@ let clients = [];
 let event = null;
 let ring = null;
 let specialtyCode = null;
+let serverId = null;
 
 // admin stream
 app.get("/stream/admin", (req, res) => {
@@ -62,7 +63,7 @@ app.get("/stream/clients", (req, res) => {
 // Login as server (for Firestore access)
 app.post("/api/login/admin", async (req, res) => {
     try {
-        const { eventId, ringId, specialty, referees } = req.body;
+        const { eventId, ringId, specialty } = req.body;
         
         validate(res, eventId, ringId);
         
@@ -72,16 +73,23 @@ app.post("/api/login/admin", async (req, res) => {
 
         console.log("Login server", event, ring);
         
-        // Login to Firebase as server
-        await loginAsServer(event, ring);
+        // Login to Firebase as server if not already logged in
+        if (!serverId) {       
+            
+            await loginAsServer(event, ring);
 
-        // Initialize scores in memory
-        initScores(referees, SPECIALTY_CONFIGURATION[specialtyCode].startScore);
+            // Initialize scores in memory
+            initScores(SPECIALTY_CONFIGURATION[specialtyCode].referees, SPECIALTY_CONFIGURATION[specialtyCode].startScore);
 
-        // Create match
-        await createMatch(event, ring, specialtyCode);
+            // Create match
+            await createMatch(event, ring, specialtyCode);
 
-        res.json({ ok: true, uid: auth.currentUser.uid, localIp: getLocalIP() });
+            // Set server id
+            serverId = auth.currentUser.uid;
+        }
+
+        res.json({ ok: true, uid: serverId, localIp: getLocalIP() });
+    
     } catch (err) {
         console.error("Login failed:", err);
         res.status(401).json({ ok: false, error: err.message });
@@ -94,7 +102,7 @@ app.post("/api/login/referee", async (req, res) => {
     validate(res, event, ring);
 
     try {
-        const { refereeId, token, code } = req.body;
+        const { refereeId, token } = req.body;
         const currentScores = getScores();
         const referee = currentScores?.[refereeId];
 
@@ -104,11 +112,10 @@ app.post("/api/login/referee", async (req, res) => {
         }
 
         const validToken = token && referee.token === token;
-        const validCode  = code  && referee.code  === code;
 
-        if (!validToken && !validCode) {
+        if (!validToken) {
             
-            return res.status(401).json({ error: "Invalid token or code" });
+            return res.status(401).json({ error: "Invalid token" });
         }
 
         const startScore = SPECIALTY_CONFIGURATION[specialtyCode].startScore;
@@ -306,4 +313,8 @@ function getLocalIP() {
 
 app.get("/tablet/:id", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "tablet.html"));
+});
+
+app.get("/admin", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "admin.html"));
 });

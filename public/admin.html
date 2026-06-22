@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <link rel="icon" href="/favicon.ico">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #1a1f2e;
+            font-family: 'Arial', sans-serif;
+            color: #e8eaf0;
+            min-height: 100vh;
+            padding: 20px 24px;
+        }
+
+        .panel {
+            width: 100%;
+            margin: 0;
+        }
+
+        /* ── TOP BAR ── */
+        .topbar {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin-bottom: 32px;
+        }
+
+        .topbar-row2 {
+            display: grid;
+            grid-template-columns: 70px 110px 1fr 110px 110px 110px 110px 1fr 110px 70px;
+            gap: 14px;
+            align-items: flex-end;
+        }
+
+        .topbar .ring-title {
+            font-size: 18px;
+            font-weight: 900;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        .topbar .ring-title .event-name {
+            color: #a0aab8;
+            font-weight: 400;
+        }
+
+        /* ── CATEGORY BAR ── */
+        .category-bar {
+            display: grid;
+            grid-template-columns: 70px 110px 1fr 110px;
+            gap: 14px;
+            grid-column: 1 / 5;
+        }
+        .category-display {
+            grid-column: 1 / 4;
+            background: #252d3f;
+            border: 1px solid #3a4560;
+            color: #e8eaf0;
+            padding: 10px 14px;
+            border-radius: 4px;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .load-btn {
+            grid-column: 4;
+            background: #1a6fa8;
+            border: none;
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+            padding: 10px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .load-btn:active { filter: brightness(1.2); }
+
+        /* ── CATEGORY MODAL ── */
+        .category-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .category-modal {
+            background: #1f2638;
+            border-radius: 10px;
+            width: 460px;
+            max-width: 90vw;
+            overflow: hidden;
+        }
+        .category-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 20px;
+            border-bottom: 1px solid #2a3550;
+        }
+        .category-modal-header h3 {
+            color: #4a9fd8;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .category-modal-close {
+            background: none;
+            border: none;
+            color: #8a93a8;
+            font-size: 20px;
+            cursor: pointer;
+            line-height: 1;
+        }
+        .category-modal-close:active { color: white; }
+        .category-modal-body {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .category-select {
+            background: #252d3f;
+            border: 1px solid #3a4560;
+            color: #e8eaf0;
+            padding: 12px 14px;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 100%;
+            outline: none;
+        }
+        .category-modal-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: none;
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            padding: 14px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .category-modal-btn:active { filter: brightness(1.2); }
+        .category-modal-btn.refresh { background: #1a6fa8; }
+        .category-modal-btn.load { background: #2a9a5a; }
+
+        /* ── ERROR MODAL ── */
+        .error-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.65);
+            z-index: 300;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .error-modal {
+            background: #1f2638;
+            border-radius: 10px;
+            width: 380px;
+            max-width: 90vw;
+            overflow: hidden;
+            border: 1px solid #5a2a30;
+        }
+        .error-modal-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 18px 20px;
+            border-bottom: 1px solid #2a3550;
+        }
+        .error-modal-header .error-icon {
+            color: #e05a5a;
+            font-size: 20px;
+        }
+        .error-modal-header h3 {
+            color: #e05a5a;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .error-modal-body {
+            padding: 20px;
+            color: #c8ccd8;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .error-modal-footer {
+            padding: 0 20px 20px;
+        }
+        .error-modal-footer button {
+            width: 100%;
+            border: none;
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            padding: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #cc3340;
+        }
+        .error-modal-footer button:active { filter: brightness(1.2); }
+
+        /* ── REFEREE AUTH MODAL ── */
+        .auth-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.65);
+            z-index: 250;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .auth-modal {
+            background: #1f2638;
+            border-radius: 10px;
+            width: 360px;
+            max-width: 90vw;
+            overflow: hidden;
+        }
+        .auth-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 20px;
+            border-bottom: 1px solid #2a3550;
+        }
+        .auth-modal-header h3 {
+            color: #4a9fd8;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .auth-modal-close {
+            background: none;
+            border: none;
+            color: #8a93a8;
+            font-size: 20px;
+            cursor: pointer;
+            line-height: 1;
+        }
+        .auth-modal-close:active { color: white; }
+        .auth-modal-body {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+        .auth-qr-box {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .auth-qr-box canvas { display: block; }
+        .auth-url-row {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+        .auth-url-input {
+            flex: 1;
+            background: #252d3f;
+            border: 1px solid #3a4560;
+            color: #e8eaf0;
+            padding: 10px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            outline: none;
+            min-width: 0;
+        }
+        .auth-copy-btn {
+            background: #1a6fa8;
+            border: none;
+            color: white;
+            font-weight: 700;
+            font-size: 13px;
+            padding: 10px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .auth-copy-btn:active { filter: brightness(1.2); }
+
+        .topbar-fields {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            grid-column: 5 / 11;
+            justify-content: flex-end;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .field label {
+            font-size: 11px;
+            color: #a0aab8;
+            letter-spacing: 0.5px;
+        }
+        .field input {
+            background: #252d3f;
+            border: 1px solid #3a4560;
+            color: #e8eaf0;
+            padding: 8px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 80px;
+            outline: none;
+            cursor: pointer;
+        }
+        .field input:focus { border-color: #1a6fa8; }
+        .field input:active { background: #2a3550; }
+
+        /* ── KEYPAD MODAL ── */
+        .keypad-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .keypad-modal {
+            background: #1f2638;
+            border-radius: 14px;
+            padding: 20px;
+            width: 280px;
+        }
+        .keypad-title {
+            color: #a0aab8;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .keypad-display {
+            background: #252d3f;
+            border: 1px solid #3a4560;
+            border-radius: 8px;
+            color: white;
+            font-size: 28px;
+            font-weight: 900;
+            text-align: center;
+            padding: 14px;
+            margin-bottom: 14px;
+            font-variant-numeric: tabular-nums;
+            min-height: 28px;
+        }
+        .keypad-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .keypad-key {
+            background: #2a3550;
+            border: none;
+            color: white;
+            font-size: 20px;
+            font-weight: 700;
+            padding: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .keypad-key:active { filter: brightness(1.3); }
+        .keypad-key.wide { grid-column: span 1; }
+        .keypad-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .keypad-actions button {
+            border: none;
+            padding: 14px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            color: white;
+        }
+        .keypad-cancel { background: #3a4560; color: #a0aab8; }
+        .keypad-confirm { background: #1a6fa8; }
+        .keypad-actions button:active { filter: brightness(1.2); }
+
+        .hidden { display: none !important; }
+
+        .match-nav {
+            display: flex;
+            align-items: flex-end;
+            gap: 6px;
+        }
+        .match-nav .field input { width: 60px; text-align: center; }
+
+        .nav-btn {
+            background: #2a3550;
+            border: none;
+            color: #6a7590;
+            padding: 9px 14px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+        }
+        .nav-btn:not(:disabled) { color: white; cursor: pointer; }
+        .nav-btn:not(:disabled):active { filter: brightness(1.3); }
+        .nav-btn:disabled { cursor: not-allowed; }
+
+        /* ── SCORE ROW ── */
+        .score-row {
+            display: grid;
+            grid-template-columns: 70px 110px 1fr 110px 110px 110px 110px 1fr 110px 70px;
+            gap: 14px;
+            align-items: stretch;
+            margin-bottom: 28px;
+        }
+
+        .country-select {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            width: 70px;
+        }
+        .country-select select {
+            background: #252d3f;
+            border: 1px solid #3a4560;
+            color: #e8eaf0;
+            padding: 8px 4px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 700;
+            width: 100%;
+            outline: none;
+        }
+        .flag { font-size: 22px; line-height: 1; }
+
+        .name-bar {
+            display: flex;
+            align-items: center;
+            padding: 0 18px;
+            border-radius: 6px;
+            font-weight: 900;
+            font-size: 16px;
+            letter-spacing: 1px;
+            color: white;
+        }
+        .name-bar.red  { background: #cc0000; }
+        .name-bar.blue { background: #1a6fa8; }
+
+        .timer-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #e0b400;
+            border-radius: 6px;
+            font-size: 32px;
+            font-weight: 900;
+            color: #1a1f2e;
+            letter-spacing: 2px;
+            font-variant-numeric: tabular-nums;
+        }
+        .timer-bar.running { background: #38a169; color: white; }
+        .timer-bar.warning { background: #cc0000; color: white; }
+
+        /* ── MAIN SCORE ── */
+        .main-score-row {
+            display: grid;
+            grid-template-columns: 70px 110px 1fr 110px 110px 110px 110px 1fr 110px 70px;
+            gap: 14px;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+        .main-score {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100px;
+            border-radius: 8px;
+            font-size: 64px;
+            font-weight: 900;
+            color: white;
+            grid-column: 1 / 5;
+        }
+        .main-score.red  { background: #cc0000; }
+        .main-score.blue { background: #1a6fa8; grid-column: 7 / 11; }
+        .round-label {
+            text-align: center;
+            color: #a0aab8;
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            white-space: nowrap;
+            grid-column: 5 / 7;
+        }
+
+        /* ── SCORE GRID ── */
+        .score-grid-row {
+            display: grid;
+            grid-template-columns: 70px 110px 1fr 110px 110px 110px 110px 1fr 110px 70px;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+
+        .side-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 18px;
+            color: #6a7590;
+            width: 28px;
+        }
+        .side-label.red-text  { color: #e05a5a; }
+        .side-label.blue-text { color: #4a9fd8; }
+
+        .adj-btn {
+            border: none;
+            color: white;
+            font-weight: 900;
+            font-size: 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: filter 0.1s;
+            min-height: 48px;
+        }
+        .adj-btn:active { filter: brightness(1.25); }
+        .adj-btn.red  { background: #cc0000; }
+        .adj-btn.blue { background: #1a6fa8; }
+
+        .score-display {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            font-weight: 900;
+            border-radius: 6px;
+            color: white;
+            min-height: 48px;
+        }
+        .score-display.red  { background: #cc0000; }
+        .score-display.blue { background: #1a6fa8; }
+        .score-display.center-display {
+            background: #252d3f;
+            color: #e8eaf0;
+            font-size: 22px;
+        }
+
+        .action-row {
+            display: grid;
+            grid-template-columns: 70px 110px 1fr 110px 110px 110px 110px 1fr 110px 70px;
+            gap: 14px;
+            margin-bottom: 28px;
+        }
+
+        .action-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: none;
+            color: white;
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: filter 0.1s;
+        }
+        .action-btn:active { filter: brightness(1.2); }
+        .action-btn.red  { background: #cc0000; }
+        .action-btn.blue { background: #1a6fa8; }
+        .action-btn.green { background: #2a7a2a; }
+        .action-btn .icon { font-size: 15px; }
+
+        /* ── STATE INDICATOR ── */
+        .state-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 30px;
+            font-size: 14px;
+            font-weight: 900;
+            letter-spacing: 1px;
+        }
+        .state-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            background: #e53e3e;
+        }
+        .state-dot.play { background: #38a169; }
+        .state-text.stop { color: #e53e3e; }
+        .state-text.play { color: #38a169; }
+
+        @media (max-width: 900px) {
+            .score-grid-row {
+                grid-template-columns: repeat(2, 1fr);
+                grid-template-areas:
+                    "labelL labelR"
+                    "adjL adjR"
+                    "scoreL scoreR"
+                    "adjL2 adjR2"
+                    "score2L score2R";
+            }
+        }
+
+        /* ── REFEREES SECTION ── */
+        .referees-section {
+            margin-top: 36px;
+            padding-top: 28px;
+            border-top: 1px solid #2a3550;
+        }
+        .referees-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 18px;
+        }
+        .referee-card {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .referee-title {
+            text-align: center;
+            color: #8a93a8;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .referee-score-input {
+            background: #252d3f;
+            border: 1px solid #3a4560;
+            color: #e8eaf0;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 700;
+            padding: 10px;
+            border-radius: 4px;
+            outline: none;
+            width: 100%;
+        }
+        .referee-score-input:focus { border-color: #1a6fa8; }
+        .referee-btn-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+        .referee-btn {
+            border: none;
+            color: white;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: filter 0.1s;
+        }
+        .referee-btn:active { filter: brightness(1.25); }
+        .referee-btn.auth  { background: #1a6fa8; }
+        .referee-btn.reset { background: #4a5578; }
+        .referee-btn.copy {
+            background: transparent;
+            border: 1px solid #3a4560;
+            color: #4a9a5a;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .referee-btn.copy:disabled {
+            color: #5a6580;
+            cursor: not-allowed;
+            border-color: #2a3550;
+        }
+        .referee-btn.copy:not(:disabled):active { filter: brightness(1.3); }
+        .referee-btn.copy .copy-icon { font-size: 12px; }
+
+        @media (max-width: 900px) {
+            .referees-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.85);
+            color: white;
+            padding: 12px 22px;
+            border-radius: 20px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 99;
+        }
+        .toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+
+<div class="panel">
+
+    <audio id="gong_sound"><source src="gong.mp3"></audio>
+
+    <!-- TOP BAR -->
+    <div class="topbar">
+        <div class="ring-title">RING <span id="ringNumber">1</span> - <span class="event-name" id="eventName">Test Event</span></div>
+
+        <div class="topbar-row2">
+            <!-- CATEGORY BAR -->
+            <div class="category-bar">
+                <div class="category-display" id="categoryDisplay">No category loaded</div>
+                <button class="load-btn" onclick="openCategoryModal()">Load</button>
+            </div>
+
+            <div class="topbar-fields">
+                <div class="field">
+                    <label>ROUND NUMBER</label>
+                    <input type="text" id="roundCount" value="1" readonly onclick="openKeypad('roundCount', 'Round number', 1)">
+                </div>
+                <div class="field">
+                    <label>ROUND DURATION (s)</label>
+                    <input type="text" id="roundDuration" value="120" readonly onclick="openKeypad('roundDuration', 'Round duration (s)', 1)">
+                </div>
+                <div class="field">
+                    <label>BREAK (s)</label>
+                    <input type="text" id="breakDuration" value="60" readonly onclick="openKeypad('breakDuration', 'Break (s)', 0)">
+                </div>
+                <div class="field">
+                    <label>DOCTOR TIMER (s)</label>
+                    <input type="text" id="doctorDuration" value="180" readonly onclick="openKeypad('doctorDuration', 'Doctor timer (s)', 0)">
+                </div>
+
+                <div class="match-nav">
+                    <button class="nav-btn" id="prevMatchBtn" disabled>◀◀ PREV.</button>
+                    <div class="field">
+                        <label>MATCH</label>
+                        <input type="text" id="matchNumber" value="1" readonly onclick="openKeypad('matchNumber', 'Match number', 1)">
+                    </div>
+                    <button class="nav-btn" id="nextMatchBtn" disabled>NEXT ▶▶</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCORE / NAME / TIMER ROW -->
+    <div class="score-row">
+        <div class="country-select" style="grid-column: 1;">
+            <select id="countryLeft">
+                <option>ITALY</option>
+                <option>FRANCE</option>
+                <option>SPAIN</option>
+                <option>GERMANY</option>
+            </select>
+            <span class="flag" id="flagLeft">🇮🇹</span>
+        </div>
+
+        <div class="name-bar red" id="nameLeft" style="grid-column: 2 / 5;">RED</div>
+
+        <div class="timer-bar" id="timerDisplay" style="grid-column: 5 / 7;">02:00</div>
+
+        <div class="name-bar blue" id="nameRight" style="grid-column: 7 / 10;">BLUE</div>
+
+        <div class="country-select" style="grid-column: 10;">
+            <select id="countryRight">
+                <option>ITALY</option>
+                <option>FRANCE</option>
+                <option>SPAIN</option>
+                <option>GERMANY</option>
+            </select>
+            <span class="flag" id="flagRight">🇮🇹</span>
+        </div>
+    </div>
+
+    <!-- MAIN SCORE -->
+    <div class="main-score-row">
+        <div class="main-score red" id="mainScoreLeft">0</div>
+        <div class="round-label">ROUND<br><span id="roundIndicator">1</span>/<span id="roundTotal">1</span></div>
+        <div class="main-score blue" id="mainScoreRight">0</div>
+    </div>
+
+    <!-- W ROW -->
+    <div class="score-grid-row">
+        <div class="side-label red-text" style="grid-column: 1;">W</div>
+        <button class="adj-btn red" id="wMinusLeft" style="grid-column: 2;">−</button>
+        <div class="score-display red" id="wScoreLeft" style="grid-column: 3;">0</div>
+        <button class="adj-btn red" id="wPlusLeft" style="grid-column: 4;">+ (Q)</button>
+        <button class="action-btn green" id="resetAllBtn" style="grid-column: 5 / 7; font-size: 11px; padding: 8px 4px;">
+            <span class="icon">↻</span> RESET ALL
+        </button>
+        <button class="adj-btn blue" id="wPlusRight" style="grid-column: 7;">+ (W)</button>
+        <div class="score-display blue" id="wScoreRight" style="grid-column: 8;">0</div>
+        <button class="adj-btn blue" id="wMinusRight" style="grid-column: 9;">−</button>
+        <div class="side-label blue-text" style="grid-column: 10;">W</div>
+    </div>
+
+    <!-- P ROW -->
+    <div class="score-grid-row">
+        <div class="side-label red-text" style="grid-column: 1;">−P</div>
+        <button class="adj-btn red" id="pMinusLeft" style="grid-column: 2;">−</button>
+        <div class="score-display red" id="pScoreLeft" style="grid-column: 3;">0</div>
+        <button class="adj-btn red" id="pPlusLeft" style="grid-column: 4;">+ (A)</button>
+        <button class="action-btn green" id="startStopBtn" style="grid-column: 5 / 7; font-size: 11px; padding: 8px 4px;">
+            <span class="icon" id="startStopIcon">▶</span> <span id="startStopLabel">START</span>
+        </button>
+        <button class="adj-btn blue" id="pPlusRight" style="grid-column: 7;">+ (S)</button>
+        <div class="score-display blue" id="pScoreRight" style="grid-column: 8;">0</div>
+        <button class="adj-btn blue" id="pMinusRight" style="grid-column: 9;">−</button>
+        <div class="side-label blue-text" style="grid-column: 10;">−P</div>
+    </div>
+
+    <!-- ACTION ROW: doctor timers + state indicator at same height -->
+    <div class="action-row" style="margin-bottom: 16px; align-items: center;">
+        <button class="action-btn red" id="doctorTimerLeftBtn" style="grid-column: 2 / 5;">
+            <span class="icon">👤</span> START DOCTOR TIMER RED
+        </button>
+        <div class="state-row" style="grid-column: 5 / 7; margin-bottom: 0;">
+            <span>STATE</span>
+            <span class="state-dot" id="stateDot"></span>
+            <span class="state-text stop" id="stateText">STOP</span>
+        </div>
+        <button class="action-btn blue" id="doctorTimerRightBtn" style="grid-column: 7 / 10;">
+            <span class="icon">👤</span> START DOCTOR TIMER BLUE
+        </button>
+    </div>
+
+    <!-- REFEREES SECTION -->
+    <div class="referees-section">
+        <div class="referees-grid" id="refereesGrid">
+            <!-- 4 referee cards generated below -->
+        </div>
+    </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- KEYPAD MODAL -->
+<div class="keypad-overlay hidden" id="keypadOverlay" onclick="closeKeypadOnBackdrop(event)">
+    <div class="keypad-modal">
+        <div class="keypad-title" id="keypadTitle">Value</div>
+        <div class="keypad-display" id="keypadDisplay">0</div>
+        <div class="keypad-grid">
+            <button class="keypad-key" onclick="keypadPress('1')">1</button>
+            <button class="keypad-key" onclick="keypadPress('2')">2</button>
+            <button class="keypad-key" onclick="keypadPress('3')">3</button>
+            <button class="keypad-key" onclick="keypadPress('4')">4</button>
+            <button class="keypad-key" onclick="keypadPress('5')">5</button>
+            <button class="keypad-key" onclick="keypadPress('6')">6</button>
+            <button class="keypad-key" onclick="keypadPress('7')">7</button>
+            <button class="keypad-key" onclick="keypadPress('8')">8</button>
+            <button class="keypad-key" onclick="keypadPress('9')">9</button>
+            <button class="keypad-key" onclick="keypadClear()">C</button>
+            <button class="keypad-key" onclick="keypadPress('0')">0</button>
+            <button class="keypad-key" onclick="keypadBackspace()">⌫</button>
+        </div>
+        <div class="keypad-actions">
+            <button class="keypad-cancel" onclick="closeKeypad()">Cancel</button>
+            <button class="keypad-confirm" onclick="confirmKeypad()">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- CATEGORY MODAL -->
+<div class="category-modal-overlay hidden" id="categoryModalOverlay" onclick="closeCategoryModalOnBackdrop(event)">
+    <div class="category-modal">
+        <div class="category-modal-header">
+            <h3>Category</h3>
+            <button class="category-modal-close" onclick="closeCategoryModal()">✕</button>
+        </div>
+        <div class="category-modal-body">
+            <select class="category-select" id="categorySelect">
+                <option>C0138SRMSP - SR. SPAR. MALE RED-BLACK -63KG -70KG</option>
+                <option>C0139SRMSP - SR. SPAR. MALE BLACK-BLUE -70KG -78KG</option>
+                <option>C0140SRMSP - SR. SPAR. FEMALE RED-BLACK -55KG -63KG</option>
+            </select>
+            <button class="category-modal-btn refresh" onclick="refreshCategoryList()">
+                REFRESH LIST <span>↻</span>
+            </button>
+            <button class="category-modal-btn load" onclick="loadCategory()">
+                LOAD CATEGORY <span>✓</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ERROR MODAL -->
+<div class="error-modal-overlay hidden" id="errorModalOverlay" onclick="closeErrorModalOnBackdrop(event)">
+    <div class="error-modal">
+        <div class="error-modal-header">
+            <span class="error-icon">⚠</span>
+            <h3 id="errorModalTitle">Error</h3>
+        </div>
+        <div class="error-modal-body" id="errorModalMessage">
+            Something went wrong.
+        </div>
+        <div class="error-modal-footer">
+            <button onclick="closeErrorModal()">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- REFEREE AUTH MODAL -->
+<div class="auth-modal-overlay hidden" id="authModalOverlay" onclick="closeAuthModalOnBackdrop(event)">
+    <div class="auth-modal">
+        <div class="auth-modal-header">
+            <h3 id="authModalTitle">Referee link</h3>
+            <button class="auth-modal-close" onclick="closeAuthModal()">✕</button>
+        </div>
+        <div class="auth-modal-body">
+            <div class="auth-qr-box" id="authQrBox"></div>
+            <div class="auth-url-row">
+                <input type="text" class="auth-url-input" id="authUrlInput" readonly>
+                <button class="auth-copy-btn" onclick="copyAuthUrl()">Copy</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ── CONSTANTS ──
+    let localIp = null;
+    
+    // ── TIMER STATE ──
+    let totalSeconds = parseInt(document.getElementById("roundDuration").value);
+    let remainingSeconds = totalSeconds;
+    let timerInterval = null;
+    let isRunning = false;
+
+    const timerDisplay = document.getElementById("timerDisplay");
+    const startStopBtn = document.getElementById("startStopBtn");
+    const startStopLabel = document.getElementById("startStopLabel");
+    const startStopIcon = document.getElementById("startStopIcon");
+    const stateDot = document.getElementById("stateDot");
+    const stateText = document.getElementById("stateText");
+
+    // ── SOUNDS ──
+    const gongSound = document.getElementById('gong_sound');
+
+    // ── INIT ──
+    async function init() {
+        try {
+            
+            const res = await fetch(`http://localhost:8080/api/login/admin`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ eventId: 6, ringId: 1, specialty: "SP" })
+            });
+            if (!res.ok) throw new Error(`Login failed (HTTP ${res.status})`);
+            const data = await res.json();
+
+            console.log("Login successful:", data);
+            localIp = data.localIp;
+
+        } catch (err) {
+            
+            console.error("Initialization error:", err);
+            showErrorModal("Login failed", "Could not connect to the local server. Please check that the server is running and try again.");
+        }
+    }
+
+    // ── ERROR MODAL ──
+    function showErrorModal(title, message) {
+        document.getElementById("errorModalTitle").textContent = title;
+        document.getElementById("errorModalMessage").textContent = message;
+        document.getElementById("errorModalOverlay").classList.remove("hidden");
+    }
+
+    function closeErrorModal() {
+        document.getElementById("errorModalOverlay").classList.add("hidden");
+    }
+
+    function closeErrorModalOnBackdrop(event) {
+        if (event.target.id === "errorModalOverlay") closeErrorModal();
+    }
+
+    function formatTime(seconds) {
+        const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+        const s = (seconds % 60).toString().padStart(2, "0");
+        return `${m}:${s}`;
+    }
+
+    function renderTimer() {
+        timerDisplay.textContent = formatTime(remainingSeconds);
+        timerDisplay.classList.remove("running", "warning");
+        if (isRunning) {
+            timerDisplay.classList.add(remainingSeconds <= 10 ? "warning" : "running");
+        }
+    }
+
+    function setState(running) {
+        isRunning = running;
+        if (running) {
+            stateDot.classList.add("play");
+            stateText.classList.remove("stop");
+            stateText.classList.add("play");
+            stateText.textContent = "PLAY";
+            startStopLabel.textContent = "STOP";
+            startStopIcon.textContent = "■";
+            gongSound.play();
+        } else {
+            stateDot.classList.remove("play");
+            stateText.classList.remove("play");
+            stateText.classList.add("stop");
+            stateText.textContent = "STOP";
+            startStopLabel.textContent = "START";
+            startStopIcon.textContent = "▶";
+        }
+        renderTimer();
+    }
+
+    function tick() {
+        if (remainingSeconds <= 0) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            setState(false);
+            return;
+        }
+        remainingSeconds -= 1;
+        renderTimer();
+    }
+
+    function startTimer() {
+        if (timerInterval) return;
+        setState(true);
+        timerInterval = setInterval(tick, 1000);
+    }
+
+    function stopTimer() {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        setState(false);
+    }
+
+    startStopBtn.addEventListener("click", () => {
+        if (isRunning) {
+            stopTimer();
+        } else {
+            startTimer();
+        }
+    });
+
+    document.getElementById("resetAllBtn").addEventListener("click", () => {
+        stopTimer();
+        totalSeconds = parseInt(document.getElementById("roundDuration").value) || 120;
+        remainingSeconds = totalSeconds;
+        renderTimer();
+
+        // Reset score displays
+        ["wScoreLeft", "wScoreRight", "pScoreLeft", "pScoreRight", "mainScoreLeft", "mainScoreRight"].forEach(id => {
+            document.getElementById(id).textContent = "0";
+        });
+    });
+
+    document.getElementById("roundDuration").addEventListener("change", (e) => {
+        if (!isRunning) {
+            totalSeconds = parseInt(e.target.value) || 120;
+            remainingSeconds = totalSeconds;
+            renderTimer();
+        }
+    });
+
+    // ── KEYPAD ──
+    let keypadTargetId = null;
+    let keypadMin = 0;
+    let keypadValue = "";
+
+    function openKeypad(targetId, title, min) {
+        keypadTargetId = targetId;
+        keypadMin = min;
+        keypadValue = document.getElementById(targetId).value || "";
+        document.getElementById("keypadTitle").textContent = title;
+        document.getElementById("keypadDisplay").textContent = keypadValue || "0";
+        document.getElementById("keypadOverlay").classList.remove("hidden");
+    }
+
+    function closeKeypad() {
+        document.getElementById("keypadOverlay").classList.add("hidden");
+        keypadTargetId = null;
+    }
+
+    function closeKeypadOnBackdrop(event) {
+        if (event.target.id === "keypadOverlay") closeKeypad();
+    }
+
+    // ── CATEGORY MODAL ──
+    function openCategoryModal() {
+        document.getElementById("categoryModalOverlay").classList.remove("hidden");
+    }
+
+    function closeCategoryModal() {
+        document.getElementById("categoryModalOverlay").classList.add("hidden");
+    }
+
+    function closeCategoryModalOnBackdrop(event) {
+        if (event.target.id === "categoryModalOverlay") closeCategoryModal();
+    }
+
+    function refreshCategoryList() {
+        // Placeholder — will fetch real category list from server
+        showToast("Category list refreshed");
+    }
+
+    function loadCategory() {
+        const select = document.getElementById("categorySelect");
+        const selected = select.options[select.selectedIndex].text;
+        document.getElementById("categoryDisplay").textContent = selected;
+        closeCategoryModal();
+        showToast("Category loaded");
+    }
+
+    function keypadPress(digit) {
+        if (keypadValue.length >= 6) return; // reasonable max length
+        keypadValue += digit;
+        document.getElementById("keypadDisplay").textContent = keypadValue;
+    }
+
+    function keypadBackspace() {
+        keypadValue = keypadValue.slice(0, -1);
+        document.getElementById("keypadDisplay").textContent = keypadValue || "0";
+    }
+
+    function keypadClear() {
+        keypadValue = "";
+        document.getElementById("keypadDisplay").textContent = "0";
+    }
+
+    function confirmKeypad() {
+        if (!keypadTargetId) return;
+        let value = parseInt(keypadValue) || keypadMin;
+        if (value < keypadMin) value = keypadMin;
+
+        const input = document.getElementById(keypadTargetId);
+        input.value = value;
+        input.dispatchEvent(new Event("change"));
+
+        closeKeypad();
+    }
+
+    // Sync ROUND total display with ROUND NUMBER field
+    document.getElementById("roundCount").addEventListener("change", (e) => {
+        document.getElementById("roundTotal").textContent = e.target.value;
+    });
+
+    // ── SCORE BUTTONS (W / P) — local-only for now ──
+    function updateMainScore() {
+        const wLeft  = parseInt(document.getElementById("wScoreLeft").textContent)  || 0;
+        const pLeft  = parseInt(document.getElementById("pScoreLeft").textContent)  || 0;
+        const wRight = parseInt(document.getElementById("wScoreRight").textContent) || 0;
+        const pRight = parseInt(document.getElementById("pScoreRight").textContent) || 0;
+        document.getElementById("mainScoreLeft").textContent  = wLeft - pLeft;
+        document.getElementById("mainScoreRight").textContent = wRight - pRight;
+    }
+
+    function bindCounter(plusId, minusId, displayId) {
+        const display = document.getElementById(displayId);
+        document.getElementById(plusId).addEventListener("click", () => {
+            display.textContent = parseInt(display.textContent) + 1;
+            updateMainScore();
+        });
+        document.getElementById(minusId).addEventListener("click", () => {
+            display.textContent = Math.max(0, parseInt(display.textContent) - 1);
+            updateMainScore();
+        });
+    }
+    bindCounter("wPlusLeft",  "wMinusLeft",  "wScoreLeft");
+    bindCounter("wPlusRight", "wMinusRight", "wScoreRight");
+    bindCounter("pPlusLeft",  "pMinusLeft",  "pScoreLeft");
+    bindCounter("pPlusRight", "pMinusRight", "pScoreRight");
+
+    renderTimer();
+
+    // ── REFEREES ──
+    const refereeCount = 4;
+    const refereesGrid = document.getElementById("refereesGrid");
+
+    // Placeholder state per referee; real values come from /api/login/admin + /api/tablet/url later
+    const refereeState = {};
+    for (let i = 1; i <= refereeCount; i++) {
+        refereeState[i] = { score: 0, code: null, url: null };
+    }
+
+    function renderReferees() {
+        refereesGrid.innerHTML = "";
+        for (let i = 1; i <= refereeCount; i++) {
+            const card = document.createElement("div");
+            card.className = "referee-card";
+            card.innerHTML = `
+                <div class="referee-title">Referee ${i}</div>
+                <input type="text" class="referee-score-input" id="refScore${i}" value="${refereeState[i].score}" readonly>
+                <div class="referee-btn-row">
+                    <button class="referee-btn auth" id="refAuth${i}">AUTH</button>
+                    <button class="referee-btn reset" id="refReset${i}">RESET</button>
+                </div>
+                <div class="referee-btn-row">
+                    <button class="referee-btn copy" id="refCode${i}" ${refereeState[i].code ? "" : "disabled"}>
+                        <span class="copy-icon">⧉</span> ${refereeState[i].code ?? "CODE"}
+                    </button>
+                    <button class="referee-btn copy" id="refUrl${i}" ${refereeState[i].url ? "" : "disabled"}>
+                        <span class="copy-icon">⧉</span> URL
+                    </button>
+                </div>
+            `;
+            refereesGrid.appendChild(card);
+
+            // AUTH — calls /api/tablet/url/:id, shows QR + copyable link
+            document.getElementById(`refAuth${i}`).addEventListener("click", () => {
+                authReferee(i);
+            });
+
+            // RESET — placeholder for now (will call /api/score/referee/:id reset)
+            document.getElementById(`refReset${i}`).addEventListener("click", () => {
+                showToast(`Referee ${i}: RESET not yet connected`);
+            });
+
+            // CODE — copy to clipboard
+            document.getElementById(`refCode${i}`).addEventListener("click", () => {
+                if (!refereeState[i].code) return;
+                copyToClipboard(refereeState[i].code, `Code for Referee ${i} copied`);
+            });
+
+            // URL — copy to clipboard
+            document.getElementById(`refUrl${i}`).addEventListener("click", () => {
+                if (!refereeState[i].url) return;
+                copyToClipboard(refereeState[i].url, `URL for Referee ${i} copied`);
+            });
+        }
+    }
+
+    function copyToClipboard(text, message) {
+        navigator.clipboard.writeText(text)
+            .then(() => showToast(message))
+            .catch(() => showToast("Copy failed"));
+    }
+
+    // ── REFEREE AUTH ──
+    async function authReferee(refereeId) {
+        try {
+            const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
+            const res = await fetch(`${base}/api/tablet/url/${refereeId}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+
+            if (!data.ok || !data.url) throw new Error("Invalid response");
+
+            refereeState[refereeId].url = data.url;
+
+            // Enable the URL copy button on the card now that we have a value
+            const urlBtn = document.getElementById(`refUrl${refereeId}`);
+            if (urlBtn) {
+                urlBtn.disabled = false;
+                urlBtn.innerHTML = `<span class="copy-icon">⧉</span> URL`;
+            }
+
+            openAuthModal(refereeId, data.url);
+
+        } catch (err) {
+            console.error("Referee auth error:", err);
+            showErrorModal("Authentication failed", `Could not generate the link for Referee ${refereeId}. Please check the server connection and try again.`);
+        }
+    }
+
+    function openAuthModal(refereeId, url) {
+        document.getElementById("authModalTitle").textContent = `Referee ${refereeId} link`;
+        document.getElementById("authUrlInput").value = url;
+
+        const qrBox = document.getElementById("authQrBox");
+        qrBox.innerHTML = "";
+        const canvas = document.createElement("canvas");
+        qrBox.appendChild(canvas);
+        QRCode.toCanvas(canvas, url, { width: 220, margin: 1 }, (err) => {
+            if (err) console.error("QR generation error:", err);
+        });
+
+        document.getElementById("authModalOverlay").classList.remove("hidden");
+    }
+
+    function closeAuthModal() {
+        document.getElementById("authModalOverlay").classList.add("hidden");
+    }
+
+    function closeAuthModalOnBackdrop(event) {
+        if (event.target.id === "authModalOverlay") closeAuthModal();
+    }
+
+    function copyAuthUrl() {
+        const url = document.getElementById("authUrlInput").value;
+        copyToClipboard(url, "Link copied to clipboard");
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById("toast");
+        toast.textContent = msg;
+        toast.classList.add("show");
+        setTimeout(() => toast.classList.remove("show"), 2200);
+    }
+
+    renderReferees();
+
+    window.addEventListener("load", init);
+</script>
+
+</body>
+</html>

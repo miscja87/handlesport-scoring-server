@@ -99,7 +99,7 @@
 
         .footer {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: auto 1fr;
             gap: 3px;
             padding: 3px 0 0 0;
             flex-shrink: 0;
@@ -122,6 +122,53 @@
             font-size: clamp(12px, 2.5vw, 16px);
             font-weight: 700;
             letter-spacing: 1px;
+        }
+        .footer-btn.menu-trigger {
+            flex: 0 0 60px;
+            width: 60px;
+            background: #2a3550;
+        }
+
+        /* ── MENU ── */
+        .menu-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 90;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .menu-sheet {
+            background: #1f2638;
+            width: 100%;
+            border-radius: 16px 16px 0 0;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: #2a3550;
+            border: none;
+            color: white;
+            padding: 16px 20px;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            text-align: left;
+        }
+        .menu-item:active { filter: brightness(1.2); }
+        .menu-item .icon { font-size: 20px; width: 24px; text-align: center; }
+        .menu-cancel {
+            margin-top: 4px;
+            background: #3a4560;
+            color: #a0aab8;
+            font-weight: 700;
+            justify-content: center;
         }
 
         .loading {
@@ -180,11 +227,23 @@
     </div>
 
     <div class="footer hidden" id="footer">
-        <button class="footer-btn" onclick="reload()" title="Reload">↺</button>
-        <button class="footer-btn" onclick="swapColors()" title="Switch colors">⇄</button>
-        <button class="footer-btn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
+        <button class="footer-btn menu-trigger" onclick="openMenu()" title="Menu">☰</button>
         <button class="footer-btn label" id="modeBtn" onclick="toggleMode()">1 B</button>
+    </div>
 
+    <div class="menu-overlay hidden" id="menuOverlay" onclick="closeMenuOnBackdrop(event)">
+        <div class="menu-sheet">
+            <button class="menu-item" onclick="reload(); closeMenu();">
+                <span class="icon">↺</span> Reload scores
+            </button>
+            <button class="menu-item" onclick="swapColors(); closeMenu();">
+                <span class="icon">⇄</span> Switch colors
+            </button>
+            <button class="menu-item" onclick="toggleFullscreen(); closeMenu();">
+                <span class="icon">⛶</span> Fullscreen
+            </button>
+            <button class="menu-item menu-cancel" onclick="closeMenu()">Cancel</button>
+        </div>
     </div>
 
     <div class="toast" id="toast"></div>
@@ -435,6 +494,19 @@
             grid.style.gridTemplateRows = `repeat(${buttons.length}, 1fr)`;
             btn.textContent = "1 B";
         }
+    }
+
+    // ── MENU ──
+    function openMenu() {
+        document.getElementById("menuOverlay").classList.remove("hidden");
+    }
+
+    function closeMenu() {
+        document.getElementById("menuOverlay").classList.add("hidden");
+    }
+
+    function closeMenuOnBackdrop(event) {
+        if (event.target.id === "menuOverlay") closeMenu();
     }
 
     // ── UI HELPERS ──
