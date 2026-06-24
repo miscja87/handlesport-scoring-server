@@ -251,6 +251,54 @@
             line-height: 1.5;
         }
 
+        /* ── WINNER MODAL ── */
+        .winner-modal-score {
+            text-align: center;
+            font-size: 36px;
+            font-weight: 900;
+            color: white;
+            margin: 4px 0 16px;
+        }
+        .winner-modal-score .red-text  { color: #e05a5a; }
+        .winner-modal-score .blue-text { color: #4a9fd8; }
+        .winner-btn-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            padding: 0 20px 20px;
+        }
+        .winner-btn {
+            border: none;
+            color: white;
+            font-weight: 900;
+            font-size: 15px;
+            letter-spacing: 1px;
+            padding: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #3a4560;
+            opacity: 0.6;
+            transition: opacity 0.15s, filter 0.1s;
+        }
+        .winner-btn:active { filter: brightness(1.2); }
+        .winner-btn.red { background: #cc0000; }
+        .winner-btn.blue { background: #1a6fa8; }
+        .winner-btn.suggested { opacity: 1; box-shadow: 0 0 0 2px white inset; }
+        .winner-cancel-row {
+            padding: 0 20px 20px;
+        }
+        .winner-cancel-btn {
+            width: 100%;
+            background: none;
+            border: 1px solid #3a4560;
+            color: #8a93a8;
+            font-size: 13px;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .winner-cancel-btn:active { background: #252d3f; }
+
         /* ── REFEREE AUTH MODAL ── */
         .auth-modal-overlay {
             position: fixed;
@@ -458,6 +506,26 @@
         }
         .match-nav .field input { width: 60px; text-align: center; }
 
+        .match-status-row {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        .match-status-badge {
+            display: none;
+            font-size: 12px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            padding: 6px 18px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            color: white;
+        }
+        .match-status-badge.visible { display: inline-block; }
+        .match-status-badge.idle        { background: #4a5578; }
+        .match-status-badge.in_progress { background: #c98a1f; }
+        .match-status-badge.completed   { background: #2a9a5a; }
+
         .nav-btn {
             background: #2a3550;
             border: none;
@@ -548,7 +616,10 @@
             font-weight: 900;
             color: white;
             grid-column: 1 / 5;
+            cursor: pointer;
+            transition: filter 0.1s;
         }
+        .main-score:active { filter: brightness(1.15); }
         .main-score.red  { background: #cc0000; }
         .main-score.blue { background: #1a6fa8; grid-column: 7 / 11; }
         .round-label {
@@ -690,6 +761,13 @@
             flex-direction: column;
             gap: 8px;
         }
+        .referee-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 4px;
+        }
         .referee-title {
             text-align: center;
             color: #8a93a8;
@@ -697,7 +775,52 @@
             font-weight: 700;
             letter-spacing: 1px;
             text-transform: uppercase;
-            margin-bottom: 4px;
+        }
+
+        .referee-toggle {
+            position: relative;
+            display: inline-block;
+            width: 36px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+        .referee-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .referee-toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: #3a4560;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .referee-toggle-slider::before {
+            content: "";
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            left: 2px;
+            top: 2px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.15s;
+        }
+        .referee-toggle input:checked + .referee-toggle-slider {
+            background: #2a9a5a;
+        }
+        .referee-toggle input:checked + .referee-toggle-slider::before {
+            transform: translateX(16px);
+        }
+
+        .referee-card.disabled-referee {
+            opacity: 0.45;
+        }
+        .referee-card.disabled-referee .referee-score-box,
+        .referee-card.disabled-referee .referee-btn {
+            pointer-events: none;
         }
         .referee-score-row {
             display: grid;
@@ -824,15 +947,20 @@
                 </div>
 
                 <div class="match-nav">
-                    <button class="nav-btn" id="prevMatchBtn" disabled>◀◀ PREV.</button>
+                    <button class="nav-btn" id="prevMatchBtn">◀◀ PREV.</button>
                     <div class="field">
                         <label>MATCH</label>
                         <input type="text" id="matchNumber" value="1" readonly onclick="openKeypad('matchNumber', 'Match number', 1)">
                     </div>
-                    <button class="nav-btn" id="nextMatchBtn" disabled>NEXT ▶▶</button>
+                    <button class="nav-btn" id="nextMatchBtn">NEXT ▶▶</button>
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- MATCH STATUS BADGE -->
+    <div class="match-status-row">
+        <span class="match-status-badge" id="matchStatusBadge"></span>
     </div>
 
     <!-- SCORE / NAME / TIMER ROW -->
@@ -866,9 +994,9 @@
 
     <!-- MAIN SCORE -->
     <div class="main-score-row">
-        <div class="main-score red" id="mainScoreLeft">0</div>
+        <div class="main-score red" id="mainScoreLeft" onclick="showWinnerModal(false)">0</div>
         <div class="round-label">ROUND<br><span id="roundIndicator">1</span>/<span id="roundTotal">1</span></div>
-        <div class="main-score blue" id="mainScoreRight">0</div>
+        <div class="main-score blue" id="mainScoreRight" onclick="showWinnerModal(false)">0</div>
     </div>
 
     <!-- W ROW -->
@@ -963,9 +1091,6 @@
         </div>
         <div class="category-modal-body">
             <select class="category-select" id="categorySelect">
-                <option>C0138SRMSP - SR. SPAR. MALE RED-BLACK -63KG -70KG</option>
-                <option>C0139SRMSP - SR. SPAR. MALE BLACK-BLUE -70KG -78KG</option>
-                <option>C0140SRMSP - SR. SPAR. FEMALE RED-BLACK -55KG -63KG</option>
             </select>
             <button class="category-modal-btn refresh" onclick="refreshCategoryList()">
                 REFRESH LIST <span>↻</span>
@@ -1026,9 +1151,32 @@
     </div>
 </div>
 
+<!-- WINNER MODAL -->
+<div class="info-modal-overlay hidden" id="winnerModalOverlay" onclick="closeWinnerModalOnBackdrop(event)">
+    <div class="info-modal">
+        <div class="info-modal-header">
+            <span class="info-icon">🏆</span>
+            <h3 id="winnerModalTitle">Match finished</h3>
+        </div>
+        <div class="info-modal-body" id="winnerModalMessage">
+            All rounds have been completed.
+        </div>
+        <div class="winner-modal-score" id="winnerModalScore"></div>
+        <div class="winner-btn-row">
+            <button class="winner-btn red" id="winnerBtnRed" onclick="confirmWinner('red')">RED WINS</button>
+            <button class="winner-btn blue" id="winnerBtnBlue" onclick="confirmWinner('blue')">BLUE WINS</button>
+        </div>
+        <div class="winner-cancel-row">
+            <button class="winner-cancel-btn" onclick="closeWinnerModal()">Cancel — review scores first</button>
+        </div>
+    </div>
+</div>
+
 <script>
     // ── CONSTANTS ──
     let localIp = null;
+    let currentMatches = [];
+    let currentMatchIndex = 0;
     
     // ── TIMER STATE ──
     let totalSeconds = parseInt(document.getElementById("roundDuration").value);
@@ -1036,6 +1184,15 @@
     let timerInterval = null;
     let isRunning = false;
     let isBreakPhase = false;
+
+    // ── DOCTOR TIMER STATE ──
+    // Cumulative remaining seconds per color, persists across pause/resume within a match.
+    let doctorTimerInterval = null;
+    let activeDoctorColor = null; // "red" | "blue" | null
+    const doctorTimerState = {
+        red:  { remaining: parseInt(document.getElementById("doctorDuration").value) || 180, running: false },
+        blue: { remaining: parseInt(document.getElementById("doctorDuration").value) || 180, running: false }
+    };
 
     const timerDisplay = document.getElementById("timerDisplay");
     const startStopBtn = document.getElementById("startStopBtn");
@@ -1051,20 +1208,32 @@
     const ACTION_CONNECTED = "connected";
     const ACTION_UPDATE_SCORE = "update_score";
 
+    // ── SETUP PARAMS (from intro.html) ──
+    const setupParams = new URLSearchParams(window.location.search);
+    const setupEventId = setupParams.get("event");
+    const setupRingId = setupParams.get("ring");
+    const setupSpecialty = setupParams.get("specialty");
+
     // ── INIT ──
     async function init() {
         try {
-            
+            if (!setupEventId || !setupRingId || !setupSpecialty) {
+                showErrorModal("Missing setup data", "Event, ring or specialty were not provided. Please go back and complete the setup screen.");
+                return;
+            }
+
             const res = await fetch(`http://localhost:8080/api/login/admin`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ eventId: 6, ringId: 1, specialty: "SP" })
+                body: JSON.stringify({ eventId: setupEventId, ringId: setupRingId, specialty: setupSpecialty })
             });
             if (!res.ok) throw new Error(`Login failed (HTTP ${res.status})`);
             const data = await res.json();
 
             console.log("Login successful:", data);
             localIp = data.localIp;
+
+            document.getElementById("ringNumber").textContent = setupRingId;
 
             const eventSource = new EventSource(`http://${localIp}:8080/stream/admin`);
             console.log("Event stream initialized on", `http://${localIp}:8080/stream/admin`);
@@ -1144,6 +1313,124 @@
         startStopIcon.textContent = icon;
     }
 
+    // ── DOCTOR TIMER ──
+    const doctorTimerLeftBtn = document.getElementById("doctorTimerLeftBtn");
+    const doctorTimerRightBtn = document.getElementById("doctorTimerRightBtn");
+    const roundLabelEl = document.querySelector(".round-label");
+
+    function doctorButtonLabel(color, state) {
+        // state: "start" | "pause" | "resume"
+        const colorLabel = color.toUpperCase();
+        if (state === "pause") return `PAUSE DOCTOR TIMER ${colorLabel}`;
+        if (state === "resume") return `RESUME DOCTOR TIMER ${colorLabel}`;
+        return `START DOCTOR TIMER ${colorLabel}`;
+    }
+
+    function setDoctorButtonText(color, label) {
+        const btn = color === "red" ? doctorTimerLeftBtn : doctorTimerRightBtn;
+        const icon = btn.querySelector(".icon");
+        btn.innerHTML = "";
+        if (icon) btn.appendChild(icon);
+        btn.append(" " + label);
+    }
+
+    function toggleDoctorTimer(color) {
+        const ds = doctorTimerState[color];
+
+        if (ds.running) {
+            pauseDoctorTimer(color);
+            return;
+        }
+
+        // Can only start a doctor timer while the round timer itself is not running.
+        if (isRunning) {
+            showToast("Pause the round timer before starting the doctor timer");
+            return;
+        }
+
+        // Only one doctor timer (red or blue) can run at a time.
+        if (activeDoctorColor && activeDoctorColor !== color) {
+            showToast(`Doctor timer ${activeDoctorColor.toUpperCase()} is already running`);
+            return;
+        }
+
+        startOrResumeDoctorTimer(color);
+    }
+
+    function startOrResumeDoctorTimer(color) {
+        const ds = doctorTimerState[color];
+
+        ds.running = true;
+        ds.everStarted = true;
+        activeDoctorColor = color;
+
+        setDoctorButtonText(color, doctorButtonLabel(color, "pause"));
+        renderDoctorOverlay(color);
+
+        doctorTimerInterval = setInterval(() => doctorTick(color), 1000);
+    }
+
+    function pauseDoctorTimer(color) {
+        clearInterval(doctorTimerInterval);
+        doctorTimerInterval = null;
+
+        const ds = doctorTimerState[color];
+        ds.running = false;
+        activeDoctorColor = null;
+
+        setDoctorButtonText(color, doctorButtonLabel(color, "resume"));
+        restoreRoundDisplay();
+    }
+
+    function doctorTick(color) {
+        const ds = doctorTimerState[color];
+
+        if (ds.remaining <= 0) {
+            clearInterval(doctorTimerInterval);
+            doctorTimerInterval = null;
+            ds.running = false;
+            activeDoctorColor = null;
+            setDoctorButtonText(color, doctorButtonLabel(color, "start"));
+            ds.remaining = 0;
+            restoreRoundDisplay();
+            showToast(`Doctor timer ${color.toUpperCase()} finished`);
+            return;
+        }
+
+        ds.remaining -= 1;
+        renderDoctorOverlay(color);
+    }
+
+    function renderDoctorOverlay(color) {
+        const ds = doctorTimerState[color];
+        timerDisplay.textContent = formatTime(ds.remaining);
+        timerDisplay.classList.remove("running", "warning");
+        timerDisplay.classList.add(ds.remaining <= 10 ? "warning" : "running");
+        roundLabelEl.innerHTML = `DOCTOR TIMER<br>${color.toUpperCase()}`;
+    }
+
+    function restoreRoundDisplay() {
+        renderTimer();
+        roundLabelEl.innerHTML = `ROUND<br><span id="roundIndicator">${document.getElementById("roundIndicator")?.textContent || 1}</span>/<span id="roundTotal">${document.getElementById("roundTotal")?.textContent || 1}</span>`;
+    }
+
+    function resetDoctorTimers() {
+        clearInterval(doctorTimerInterval);
+        doctorTimerInterval = null;
+        activeDoctorColor = null;
+
+        const defaultDuration = parseInt(document.getElementById("doctorDuration").value) || 180;
+        ["red", "blue"].forEach(color => {
+            doctorTimerState[color] = { remaining: defaultDuration, running: false, everStarted: false };
+            setDoctorButtonText(color, doctorButtonLabel(color, "start"));
+        });
+
+        restoreRoundDisplay();
+    }
+
+    doctorTimerLeftBtn.addEventListener("click", () => toggleDoctorTimer("red"));
+    doctorTimerRightBtn.addEventListener("click", () => toggleDoctorTimer("blue"));
+
     async function updateMatchStatus(state) {
         try {
             const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
@@ -1184,7 +1471,7 @@
         const totalRounds = parseInt(document.getElementById("roundTotal").textContent) || 1;
 
         if (currentRound >= totalRounds) {
-            showInfoModal("Match finished", "All rounds have been completed.", "OK");
+            showWinnerModal();
             return;
         }
 
@@ -1256,10 +1543,63 @@
         if (event.target.id === "infoModalOverlay") closeInfoModal();
     }
 
+    // ── WINNER MODAL ──
+    function showWinnerModal(matchEndedNaturally = true) {
+        const redScore = parseInt(document.getElementById("mainScoreLeft").textContent) || 0;
+        const blueScore = parseInt(document.getElementById("mainScoreRight").textContent) || 0;
+
+        const scoreEl = document.getElementById("winnerModalScore");
+        const messageEl = document.getElementById("winnerModalMessage");
+        const redBtn = document.getElementById("winnerBtnRed");
+        const blueBtn = document.getElementById("winnerBtnBlue");
+
+        const intro = matchEndedNaturally
+            ? "All rounds have been completed."
+            : "Set the winner now (e.g. retirement, injury, disqualification).";
+
+        scoreEl.innerHTML = `<span class="red-text">${redScore}</span> — <span class="blue-text">${blueScore}</span>`;
+        redBtn.classList.remove("suggested");
+        blueBtn.classList.remove("suggested");
+
+        if (redScore === blueScore) {
+            messageEl.textContent = `${intro} The result is currently a tie — please select the winner manually.`;
+        } else if (redScore > blueScore) {
+            messageEl.textContent = `${intro} RED is currently ahead — confirm the winner below.`;
+            redBtn.classList.add("suggested");
+        } else {
+            messageEl.textContent = `${intro} BLUE is currently ahead — confirm the winner below.`;
+            blueBtn.classList.add("suggested");
+        }
+
+        document.getElementById("winnerModalOverlay").classList.remove("hidden");
+    }
+
+    function confirmWinner(color) {
+        closeWinnerModal();
+        showToast(`${color.toUpperCase()} confirmed as the winner`);
+        // Server notification intentionally not implemented yet — UI-only for now.
+    }
+
+    function closeWinnerModal() {
+        document.getElementById("winnerModalOverlay").classList.add("hidden");
+    }
+
+    function closeWinnerModalOnBackdrop(event) {
+        if (event.target.id === "winnerModalOverlay") closeWinnerModal();
+    }
+
     // Starts the timer for the first time in this round — this is the only
     // point (besides RESET ALL) where the server is notified of a state change.
     function startTimer() {
         if (timerInterval) return;
+
+        // If time has already run out (e.g. winner was cancelled to review scores),
+        // re-trigger the round-finished flow instead of starting a 0-second countdown.
+        if (remainingSeconds <= 0) {
+            onRoundFinished();
+            return;
+        }
+
         setState(true);
         setButtonLabel("PAUSE", "❙❙");
         gongSound.play();
@@ -1311,6 +1651,7 @@
     document.getElementById("resetAllBtn").addEventListener("click", () => {
         stopTimer();
         closeInfoModal();
+        resetDoctorTimers();
 
         isBreakPhase = false;
         document.getElementById("roundIndicator").textContent = "1";
@@ -1393,6 +1734,7 @@
     // ── CATEGORY MODAL ──
     function openCategoryModal() {
         document.getElementById("categoryModalOverlay").classList.remove("hidden");
+        refreshCategoryList();
     }
 
     function closeCategoryModal() {
@@ -1403,18 +1745,162 @@
         if (event.target.id === "categoryModalOverlay") closeCategoryModal();
     }
 
-    function refreshCategoryList() {
-        // Placeholder — will fetch real category list from server
-        showToast("Category list refreshed");
+    // Maps category id -> full category object (needed for pool, etc.)
+    const categoriesById = {};
+
+    async function refreshCategoryList() {
+        const select = document.getElementById("categorySelect");
+
+        try {
+            const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
+            const res = await fetch(`${base}/api/categories`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const categories = await res.json();
+
+            select.innerHTML = "";
+            categories.forEach(cat => {
+                categoriesById[cat.id] = cat;
+
+                const option = document.createElement("option");
+                option.value = cat.id;
+                option.textContent = cat.long_custom_name;
+                select.appendChild(option);
+            });
+
+            showToast(`Category list refreshed (${categories.length} categories)`);
+        } catch (err) {
+            console.error("Failed to fetch categories:", err);
+            showErrorModal("Could not load categories", "Failed to fetch the category list from the server. Please check the connection and try again.");
+        }
     }
 
-    function loadCategory() {
+    async function loadCategory() {
         const select = document.getElementById("categorySelect");
-        const selected = select.options[select.selectedIndex].text;
-        document.getElementById("categoryDisplay").textContent = selected;
+        if (!select.options.length) {
+            showToast("No category selected");
+            return;
+        }
+        const selectedOption = select.options[select.selectedIndex];
+        const categoryId = selectedOption.value;
+        const category = categoriesById[categoryId];
+
+        document.getElementById("categoryDisplay").textContent = selectedOption.textContent;
+        document.getElementById("categoryDisplay").dataset.categoryId = categoryId;
         closeCategoryModal();
-        showToast("Category loaded");
+
+        if (!category || !category.pool) {
+            showToast("Category loaded (pool info missing — could not load matches)");
+            return;
+        }
+
+        await loadMatches(categoryId, category.pool);
     }
+
+    // Fetches matches for the loaded category/pool and populates RED/BLUE names
+    // for the current match (left_player_des / right_player_des).
+    async function loadMatches(idCategory, pool) {
+        try {
+            const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
+            const res = await fetch(`${base}/api/matches?id_category=${idCategory}&pool=${pool}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+
+            const matches = data.matches || [];
+            if (!matches.length) {
+                showToast("Category loaded — no matches found");
+                return;
+            }
+
+            matches.sort((a, b) => parseInt(b.id_match) - parseInt(a.id_match));
+
+            currentMatches = matches;
+            currentMatchIndex = 0;
+            applyMatch(currentMatches[currentMatchIndex]);
+
+            showToast(`Category loaded (${matches.length} matches)`);
+        } catch (err) {
+            console.error("Failed to fetch matches:", err);
+            showErrorModal("Could not load matches", "Failed to fetch the match list for this category. Please check the connection and try again.");
+        }
+    }
+
+    // Applies a single match's player names to the RED/BLUE name bars.
+    function applyMatch(match) {
+        if (!match) return;
+        document.getElementById("nameLeft").textContent = match.left_player_des || "RED";
+        document.getElementById("nameRight").textContent = match.right_player_des || "BLUE";
+        document.getElementById("matchNumber").value = match.id_match;
+        updateMatchStatusBadge(match.state);
+        updateMatchNavButtons();
+        notifyMatchDetails(match);
+    }
+
+    function updateMatchStatusBadge(state) {
+        const badge = document.getElementById("matchStatusBadge");
+        const labels = { IDLE: "Idle", IN_PROGRESS: "In progress", COMPLETED: "Completed" };
+
+        badge.classList.remove("idle", "in_progress", "completed", "visible");
+
+        if (!state || !labels[state]) {
+            return;
+        }
+
+        badge.textContent = labels[state];
+        badge.classList.add(state.toLowerCase(), "visible");
+    }
+
+    // Notifies the server of the current match details (player names, countries,
+    // photos, category and specialty) so it can be persisted to Firestore.
+    async function notifyMatchDetails(match) {
+        try {
+            const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
+            const categoryName = document.getElementById("categoryDisplay").textContent;
+
+            const body = {
+                "red.name": match.left_player_des || "RED",
+                "blue.name": match.right_player_des || "BLUE",
+                "red.country": match.left_player_country_name || "",
+                "blue.country": match.right_player_country_name || "",
+                "red.photo": match.left_player_photo || "default.png",
+                "blue.photo": match.right_player_photo || "default.png",
+                "category": categoryName,
+                "specialty": setupSpecialty
+            };
+
+            const res = await fetch(`${base}/api/match/details`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        } catch (err) {
+            console.error("Failed to notify match details:", err);
+        }
+    }
+
+    // Array is sorted by id_match descending (4, 3, 2, 1).
+    // PREV (+1 on id_match) moves to the previous array index.
+    // NEXT (-1 on id_match) moves to the next array index.
+    function goToPrevMatch() {
+        if (currentMatchIndex <= 0) return;
+        currentMatchIndex -= 1;
+        applyMatch(currentMatches[currentMatchIndex]);
+    }
+
+    function goToNextMatch() {
+        if (currentMatchIndex >= currentMatches.length - 1) return;
+        currentMatchIndex += 1;
+        applyMatch(currentMatches[currentMatchIndex]);
+    }
+
+    function updateMatchNavButtons() {
+        document.getElementById("prevMatchBtn").disabled = currentMatchIndex <= 0;
+        document.getElementById("nextMatchBtn").disabled = currentMatchIndex >= currentMatches.length - 1;
+    }
+
+    document.getElementById("prevMatchBtn").addEventListener("click", goToPrevMatch);
+    document.getElementById("nextMatchBtn").addEventListener("click", goToNextMatch);
 
     function keypadPress(digit) {
         if (keypadValue.length >= 6) return; // reasonable max length
@@ -1518,7 +2004,7 @@
     function subtractPointFromAllReferees(color) {
         for (let i = 1; i <= refereeCount; i++) {
             const ref = refereeState[i];
-            if (!ref || !ref.connected) continue;
+            if (!ref || !ref.connected || !ref.enabled) continue;
 
             ref.score[color] = (parseFloat(ref.score[color]) || 0) - 1;
 
@@ -1556,6 +2042,22 @@
     }
 
     // Resets a single referee's score back to zero (local UI + main score + server notify).
+    // Enables or disables a referee. A disabled referee is excluded from the
+    // main majority-vote score and from warning/penalty point subtractions,
+    // as if it didn't exist — but its own score/connection state is preserved.
+    function toggleRefereeEnabled(refereeId, enabled) {
+        const ref = refereeState[refereeId];
+        if (!ref) return;
+
+        ref.enabled = enabled;
+
+        const card = document.getElementById(`refEnabled${refereeId}`).closest(".referee-card");
+        if (card) card.classList.toggle("disabled-referee", !enabled);
+
+        recalculateMainScore();
+        showToast(`Referee ${refereeId} ${enabled ? "enabled" : "disabled"}`);
+    }
+
     function resetRefereeScore(refereeId) {
         const ref = refereeState[refereeId];
         if (!ref) return;
@@ -1628,7 +2130,7 @@
     // Placeholder state per referee; real values come from /api/login/admin + /api/tablet/url later
     const refereeState = {};
     for (let i = 1; i <= refereeCount; i++) {
-        refereeState[i] = { score: { red: 0, blue: 0 }, code: null, url: null, connected: false };
+        refereeState[i] = { score: { red: 0, blue: 0 }, code: null, url: null, connected: false, enabled: true };
     }
 
     function renderReferees() {
@@ -1637,7 +2139,13 @@
             const card = document.createElement("div");
             card.className = "referee-card";
             card.innerHTML = `
-                <div class="referee-title">Referee ${i}</div>
+                <div class="referee-title-row">
+                    <div class="referee-title">Referee ${i}</div>
+                    <label class="referee-toggle">
+                        <input type="checkbox" id="refEnabled${i}" ${refereeState[i].enabled ? "checked" : ""}>
+                        <span class="referee-toggle-slider"></span>
+                    </label>
+                </div>
                 <div class="referee-score-row">
                     <div class="referee-score-box red" id="refScoreRed${i}" onclick="editRefereeScore(${i}, 'red')">0</div>
                     <div class="referee-score-box blue" id="refScoreBlue${i}" onclick="editRefereeScore(${i}, 'blue')">0</div>
@@ -1656,6 +2164,11 @@
                 </div>
             `;
             refereesGrid.appendChild(card);
+
+            // ENABLE/DISABLE toggle — excludes this referee from the majority vote when off
+            document.getElementById(`refEnabled${i}`).addEventListener("change", (e) => {
+                toggleRefereeEnabled(i, e.target.checked);
+            });
 
             // AUTH — calls /api/tablet/url/:id, shows QR + copyable link
             document.getElementById(`refAuth${i}`).addEventListener("click", () => {
@@ -1786,7 +2299,7 @@
 
         for (let i = 1; i <= refereeCount; i++) {
             const ref = refereeState[i];
-            if (!ref || !ref.connected || !ref.score) continue;
+            if (!ref || !ref.connected || !ref.enabled || !ref.score) continue;
 
             const red = parseFloat(ref.score.red) || 0;
             const blue = parseFloat(ref.score.blue) || 0;

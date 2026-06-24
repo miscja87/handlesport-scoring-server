@@ -300,6 +300,65 @@ app.get("/api/categories", async (req, res) => {
     }
 });
 
+// Get matches
+app.get("/api/matches", async (req, res) => {
+
+    try {
+        validate(res, event, ring);
+
+        const { id_category, pool } = req.query;
+
+        if (!id_category || !pool) {
+            
+            return res.status(400).json({ ok: false, error: "id_category and pool are required" });
+        }
+
+        const response = await fetch(
+            `${HANDLESPORT_BACKEND_URL}/scoring/loadMatches?id_event=${event}&id_ring=${ring}&id_category=${id_category}&pool=${pool}`,
+            { headers: { token: jwtToken }}
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            
+            return res.status(response.status).json(data);
+        }
+
+        return res.json(data);
+
+    } catch (err) {
+        
+        console.error(err);
+
+        return res.status(500).json({ok: false, error: "Failed to fetch categories"});
+    }
+});
+
+// Get events
+app.get("/api/events", async (req, res) => {
+
+    try {
+
+        const response = await fetch(`${HANDLESPORT_BACKEND_URL}/scoring/getEvents`);
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            
+            return res.status(response.status).json(data);
+        }
+
+        return res.json(data);
+
+    } catch (err) {
+        
+        console.error(err);
+
+        return res.status(500).json({ok: false, error: "Failed to fetch events"});
+    }
+});
+
 // Start server
 export async function startServer() {
     
@@ -372,4 +431,8 @@ app.get("/tablet/:id", (req, res) => {
 
 app.get("/admin", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "admin.html"));
+});
+
+app.get("/intro", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "intro.html"));
 });

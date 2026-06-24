@@ -12,7 +12,7 @@ function createWindow() {
         }
     });
 
-    win.loadURL("https://www.handlesport.com/user/login?redirect=scoring");
+    win.loadURL("http://localhost:8080/intro");
 
     win.on("closed", () => {
         win = null;
