@@ -210,6 +210,47 @@
         }
         .error-modal-footer button:active { filter: brightness(1.2); }
 
+        /* ── INFO MODAL (round/match transitions) ── */
+        .info-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.65);
+            z-index: 300;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .info-modal {
+            background: #1f2638;
+            border-radius: 10px;
+            width: 380px;
+            max-width: 90vw;
+            overflow: hidden;
+            border: 1px solid #2a5a7a;
+        }
+        .info-modal-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 18px 20px;
+            border-bottom: 1px solid #2a3550;
+        }
+        .info-modal-header .info-icon {
+            color: #4a9fd8;
+            font-size: 20px;
+        }
+        .info-modal-header h3 {
+            color: #4a9fd8;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .info-modal-body {
+            padding: 20px;
+            color: #c8ccd8;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
         /* ── REFEREE AUTH MODAL ── */
         .auth-modal-overlay {
             position: fixed;
@@ -362,7 +403,11 @@
             margin-bottom: 14px;
             font-variant-numeric: tabular-nums;
             min-height: 28px;
+            width: 100%;
+            outline: none;
+            font-family: inherit;
         }
+        .keypad-display:focus { border-color: #1a6fa8; }
         .keypad-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -381,6 +426,11 @@
         }
         .keypad-key:active { filter: brightness(1.3); }
         .keypad-key.wide { grid-column: span 1; }
+        .keypad-key:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+        .keypad-key:disabled:active { filter: none; }
         .keypad-actions {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -649,19 +699,34 @@
             text-transform: uppercase;
             margin-bottom: 4px;
         }
-        .referee-score-input {
+        .referee-score-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+        .referee-score-box {
             background: #252d3f;
             border: 1px solid #3a4560;
-            color: #e8eaf0;
+            color: #5a6580;
             text-align: center;
             font-size: 16px;
             font-weight: 700;
             padding: 10px;
             border-radius: 4px;
-            outline: none;
-            width: 100%;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s, border-color 0.2s;
         }
-        .referee-score-input:focus { border-color: #1a6fa8; }
+        .referee-score-box:active { filter: brightness(1.3); }
+        .referee-score-box.connected.red {
+            background: #cc0000;
+            color: white;
+            border-color: #cc0000;
+        }
+        .referee-score-box.connected.blue {
+            background: #1a6fa8;
+            color: white;
+            border-color: #1a6fa8;
+        }
         .referee-btn-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -866,7 +931,7 @@
 <div class="keypad-overlay hidden" id="keypadOverlay" onclick="closeKeypadOnBackdrop(event)">
     <div class="keypad-modal">
         <div class="keypad-title" id="keypadTitle">Value</div>
-        <div class="keypad-display" id="keypadDisplay">0</div>
+        <input type="text" inputmode="numeric" class="keypad-display" id="keypadDisplay" value="0" oninput="keypadOnInput(this)" onkeydown="keypadOnKeydown(event)">
         <div class="keypad-grid">
             <button class="keypad-key" onclick="keypadPress('1')">1</button>
             <button class="keypad-key" onclick="keypadPress('2')">2</button>
@@ -877,9 +942,10 @@
             <button class="keypad-key" onclick="keypadPress('7')">7</button>
             <button class="keypad-key" onclick="keypadPress('8')">8</button>
             <button class="keypad-key" onclick="keypadPress('9')">9</button>
-            <button class="keypad-key" onclick="keypadClear()">C</button>
+            <button class="keypad-key" id="keypadSignBtn" onclick="keypadToggleSign()">±</button>
             <button class="keypad-key" onclick="keypadPress('0')">0</button>
             <button class="keypad-key" onclick="keypadBackspace()">⌫</button>
+            <button class="keypad-key" style="grid-column: 1 / 4;" onclick="keypadClear()">C</button>
         </div>
         <div class="keypad-actions">
             <button class="keypad-cancel" onclick="closeKeypad()">Cancel</button>
@@ -944,6 +1010,22 @@
     </div>
 </div>
 
+<!-- INFO MODAL (round/match transitions) -->
+<div class="info-modal-overlay hidden" id="infoModalOverlay" onclick="closeInfoModalOnBackdrop(event)">
+    <div class="info-modal">
+        <div class="info-modal-header">
+            <span class="info-icon">ⓘ</span>
+            <h3 id="infoModalTitle">Info</h3>
+        </div>
+        <div class="info-modal-body" id="infoModalMessage">
+            Message
+        </div>
+        <div class="error-modal-footer hidden" id="infoModalFooter">
+            <button id="infoModalBtn" onclick="closeInfoModal()">OK</button>
+        </div>
+    </div>
+</div>
+
 <script>
     // ── CONSTANTS ──
     let localIp = null;
@@ -953,6 +1035,7 @@
     let remainingSeconds = totalSeconds;
     let timerInterval = null;
     let isRunning = false;
+    let isBreakPhase = false;
 
     const timerDisplay = document.getElementById("timerDisplay");
     const startStopBtn = document.getElementById("startStopBtn");
@@ -963,6 +1046,10 @@
 
     // ── SOUNDS ──
     const gongSound = document.getElementById('gong_sound');
+    
+    // ── ACTIONS ──
+    const ACTION_CONNECTED = "connected";
+    const ACTION_UPDATE_SCORE = "update_score";
 
     // ── INIT ──
     async function init() {
@@ -978,6 +1065,22 @@
 
             console.log("Login successful:", data);
             localIp = data.localIp;
+
+            const eventSource = new EventSource(`http://${localIp}:8080/stream/admin`);
+            console.log("Event stream initialized on", `http://${localIp}:8080/stream/admin`);
+
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.log("Event received:", data);
+
+                if (data.action === ACTION_CONNECTED) {
+                    markRefereeConnected(data.referee);
+                }
+
+                if (data.action === ACTION_UPDATE_SCORE) {
+                    updateRefereeScore(data.referee, data.score);
+                }
+            };
 
         } catch (err) {
             
@@ -1022,9 +1125,7 @@
             stateText.classList.remove("stop");
             stateText.classList.add("play");
             stateText.textContent = "PLAY";
-            startStopLabel.textContent = "STOP";
-            startStopIcon.textContent = "■";
-            gongSound.play();
+            timerDisplay.classList.add(remainingSeconds <= 10 ? "warning" : "running");
         } else {
             stateDot.classList.remove("play");
             stateText.classList.remove("play");
@@ -1032,51 +1133,212 @@
             stateText.textContent = "STOP";
             startStopLabel.textContent = "START";
             startStopIcon.textContent = "▶";
+            timerDisplay.classList.remove("running", "warning");
         }
         renderTimer();
+    }
+
+    // Updates only the START/PAUSE/RESUME label without touching server state
+    function setButtonLabel(label, icon) {
+        startStopLabel.textContent = label;
+        startStopIcon.textContent = icon;
+    }
+
+    async function updateMatchStatus(state) {
+        try {
+            const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
+            const res = await fetch(`${base}/api/match/status`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ state })
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        } catch (err) {
+            console.error("Match status update error:", err);
+        }
     }
 
     function tick() {
         if (remainingSeconds <= 0) {
             clearInterval(timerInterval);
             timerInterval = null;
-            setState(false);
+
+            if (isBreakPhase) {
+                onBreakFinished();
+            } else {
+                onRoundFinished();
+            }
             return;
         }
         remainingSeconds -= 1;
         renderTimer();
+        if (remainingSeconds <= 10) {
+            timerDisplay.classList.add("warning");
+        }
     }
 
-    function startTimer() {
-        if (timerInterval) return;
-        setState(true);
+    function onRoundFinished() {
+        setState(false);
+
+        const currentRound = parseInt(document.getElementById("roundIndicator").textContent) || 1;
+        const totalRounds = parseInt(document.getElementById("roundTotal").textContent) || 1;
+
+        if (currentRound >= totalRounds) {
+            showInfoModal("Match finished", "All rounds have been completed.", "OK");
+            return;
+        }
+
+        showInfoModal(
+            `Round ${currentRound} finished`,
+            "Click below to start the break before the next round.",
+            "START BREAK",
+            startBreak
+        );
+    }
+
+    function startBreak() {
+        isBreakPhase = true;
+        isRunning = true;
+        updateMatchStatus("stop");
+
+        totalSeconds = parseInt(document.getElementById("breakDuration").value) || 60;
+        remainingSeconds = totalSeconds;
+
+        stateDot.classList.remove("play");
+        stateText.classList.remove("play");
+        stateText.classList.add("stop");
+        stateText.textContent = "BREAK";
+
+        renderTimer();
         timerInterval = setInterval(tick, 1000);
     }
 
+    function onBreakFinished() {
+        isBreakPhase = false;
+
+        const currentRound = parseInt(document.getElementById("roundIndicator").textContent) || 1;
+        document.getElementById("roundIndicator").textContent = currentRound + 1;
+
+        totalSeconds = parseInt(document.getElementById("roundDuration").value) || 120;
+        remainingSeconds = totalSeconds;
+
+        setState(false);
+        setButtonLabel("START", "▶");
+    }
+
+    // ── INFO MODAL (round/match transitions) ──
+    function showInfoModal(title, message, buttonText = null, onConfirm = null) {
+        document.getElementById("infoModalTitle").textContent = title;
+        document.getElementById("infoModalMessage").textContent = message;
+
+        const footer = document.getElementById("infoModalFooter");
+        const btn = document.getElementById("infoModalBtn");
+
+        if (buttonText) {
+            footer.classList.remove("hidden");
+            btn.textContent = buttonText;
+            btn.onclick = () => {
+                closeInfoModal();
+                if (onConfirm) onConfirm();
+            };
+        } else {
+            footer.classList.add("hidden");
+        }
+
+        document.getElementById("infoModalOverlay").classList.remove("hidden");
+    }
+
+    function closeInfoModal() {
+        document.getElementById("infoModalOverlay").classList.add("hidden");
+    }
+
+    function closeInfoModalOnBackdrop(event) {
+        if (event.target.id === "infoModalOverlay") closeInfoModal();
+    }
+
+    // Starts the timer for the first time in this round — this is the only
+    // point (besides RESET ALL) where the server is notified of a state change.
+    function startTimer() {
+        if (timerInterval) return;
+        setState(true);
+        setButtonLabel("PAUSE", "❙❙");
+        gongSound.play();
+        timerInterval = setInterval(tick, 1000);
+        updateMatchStatus("play");
+    }
+
+    // Pauses the countdown locally — does NOT notify the server.
+    function pauseTimer() {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        isRunning = false;
+        stateDot.classList.remove("play");
+        timerDisplay.classList.remove("running", "warning");
+        setButtonLabel("RESUME", "▶");
+        renderTimer();
+    }
+
+    // Resumes a paused countdown locally — does NOT notify the server.
+    function resumeTimer() {
+        if (timerInterval) return;
+        isRunning = true;
+        stateDot.classList.add("play");
+        timerDisplay.classList.add(remainingSeconds <= 10 ? "warning" : "running");
+        setButtonLabel("PAUSE", "❙❙");
+        timerInterval = setInterval(tick, 1000);
+        renderTimer();
+    }
+
+    // RESET ALL is the only other action that notifies the server ("stop").
     function stopTimer() {
         clearInterval(timerInterval);
         timerInterval = null;
         setState(false);
+        updateMatchStatus("stop");
     }
 
     startStopBtn.addEventListener("click", () => {
-        if (isRunning) {
-            stopTimer();
-        } else {
+        const label = startStopLabel.textContent;
+        if (label === "START") {
             startTimer();
+        } else if (label === "PAUSE") {
+            pauseTimer();
+        } else if (label === "RESUME") {
+            resumeTimer();
         }
     });
 
     document.getElementById("resetAllBtn").addEventListener("click", () => {
         stopTimer();
+        closeInfoModal();
+
+        isBreakPhase = false;
+        document.getElementById("roundIndicator").textContent = "1";
+
         totalSeconds = parseInt(document.getElementById("roundDuration").value) || 120;
         remainingSeconds = totalSeconds;
         renderTimer();
+        setButtonLabel("START", "▶");
 
         // Reset score displays
         ["wScoreLeft", "wScoreRight", "pScoreLeft", "pScoreRight", "mainScoreLeft", "mainScoreRight"].forEach(id => {
             document.getElementById(id).textContent = "0";
         });
+
+        // Reset every referee's individual score back to zero
+        for (let i = 1; i <= refereeCount; i++) {
+            if (!refereeState[i]) continue;
+            refereeState[i].score = { red: 0, blue: 0 };
+
+            const redBox = document.getElementById(`refScoreRed${i}`);
+            const blueBox = document.getElementById(`refScoreBlue${i}`);
+            if (redBox) redBox.textContent = "0";
+            if (blueBox) blueBox.textContent = "0";
+
+            if (refereeState[i].connected) {
+                notifyRefereeScore(i, refereeState[i].score);
+            }
+        }
     });
 
     document.getElementById("roundDuration").addEventListener("change", (e) => {
@@ -1091,19 +1353,37 @@
     let keypadTargetId = null;
     let keypadMin = 0;
     let keypadValue = "";
+    let keypadAllowNegative = false;
+    let keypadOnConfirm = null;
 
-    function openKeypad(targetId, title, min) {
+    // targetId: id of an <input> to update directly (legacy behavior), or null
+    // when using a custom onConfirm callback instead (e.g. referee score boxes).
+    function openKeypad(targetId, title, min, options = {}) {
         keypadTargetId = targetId;
         keypadMin = min;
-        keypadValue = document.getElementById(targetId).value || "";
+        keypadAllowNegative = options.allowNegative ?? false;
+        keypadOnConfirm = options.onConfirm ?? null;
+
+        const startValue = options.initialValue ?? (targetId ? document.getElementById(targetId).value : "");
+        keypadValue = startValue !== undefined && startValue !== null ? String(startValue) : "";
+
         document.getElementById("keypadTitle").textContent = title;
-        document.getElementById("keypadDisplay").textContent = keypadValue || "0";
+        document.getElementById("keypadDisplay").value = keypadValue || "0";
+        document.getElementById("keypadSignBtn").disabled = !keypadAllowNegative;
         document.getElementById("keypadOverlay").classList.remove("hidden");
+
+        const displayInput = document.getElementById("keypadDisplay");
+        setTimeout(() => {
+            displayInput.focus();
+            displayInput.select();
+        }, 0);
     }
 
     function closeKeypad() {
         document.getElementById("keypadOverlay").classList.add("hidden");
         keypadTargetId = null;
+        keypadOnConfirm = null;
+        keypadAllowNegative = false;
     }
 
     function closeKeypadOnBackdrop(event) {
@@ -1139,27 +1419,71 @@
     function keypadPress(digit) {
         if (keypadValue.length >= 6) return; // reasonable max length
         keypadValue += digit;
-        document.getElementById("keypadDisplay").textContent = keypadValue;
+        document.getElementById("keypadDisplay").value = keypadValue;
     }
 
     function keypadBackspace() {
         keypadValue = keypadValue.slice(0, -1);
-        document.getElementById("keypadDisplay").textContent = keypadValue || "0";
+        document.getElementById("keypadDisplay").value = keypadValue || "0";
     }
 
     function keypadClear() {
         keypadValue = "";
-        document.getElementById("keypadDisplay").textContent = "0";
+        document.getElementById("keypadDisplay").value = "0";
+    }
+
+    function keypadToggleSign() {
+        if (!keypadAllowNegative) return;
+        if (keypadValue.startsWith("-")) {
+            keypadValue = keypadValue.slice(1);
+        } else if (keypadValue) {
+            keypadValue = "-" + keypadValue;
+        } else {
+            keypadValue = "-";
+        }
+        document.getElementById("keypadDisplay").value = keypadValue || "0";
+    }
+
+    // Syncs keypadValue when the user types directly on a physical keyboard.
+    function keypadOnInput(input) {
+        let raw = input.value;
+
+        // Keep only digits, and a leading minus sign if negatives are allowed
+        let sign = "";
+        if (keypadAllowNegative && raw.startsWith("-")) {
+            sign = "-";
+            raw = raw.slice(1);
+        }
+        const digits = raw.replace(/[^0-9]/g, "").slice(0, 6);
+
+        keypadValue = sign + digits;
+        input.value = keypadValue;
+    }
+
+    function keypadOnKeydown(event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            confirmKeypad();
+        } else if (event.key === "Escape") {
+            event.preventDefault();
+            closeKeypad();
+        }
     }
 
     function confirmKeypad() {
-        if (!keypadTargetId) return;
-        let value = parseInt(keypadValue) || keypadMin;
-        if (value < keypadMin) value = keypadMin;
+        if (!keypadTargetId && !keypadOnConfirm) return;
 
-        const input = document.getElementById(keypadTargetId);
-        input.value = value;
-        input.dispatchEvent(new Event("change"));
+        let value = parseInt(keypadValue);
+        if (isNaN(value)) value = keypadMin;
+        if (!keypadAllowNegative && value < keypadMin) value = keypadMin;
+
+        if (keypadOnConfirm) {
+            keypadOnConfirm(value);
+        } else {
+            const input = document.getElementById(keypadTargetId);
+            input.value = value;
+            input.dispatchEvent(new Event("change"));
+        }
 
         closeKeypad();
     }
@@ -1169,31 +1493,131 @@
         document.getElementById("roundTotal").textContent = e.target.value;
     });
 
-    // ── SCORE BUTTONS (W / P) — local-only for now ──
-    function updateMainScore() {
-        const wLeft  = parseInt(document.getElementById("wScoreLeft").textContent)  || 0;
-        const pLeft  = parseInt(document.getElementById("pScoreLeft").textContent)  || 0;
-        const wRight = parseInt(document.getElementById("wScoreRight").textContent) || 0;
-        const pRight = parseInt(document.getElementById("pScoreRight").textContent) || 0;
-        document.getElementById("mainScoreLeft").textContent  = wLeft - pLeft;
-        document.getElementById("mainScoreRight").textContent = wRight - pRight;
+    // ── WARNING / PENALTY LOGIC ──
+    // Every 3 warnings (W) for a color, 1 point is automatically removed (P+1, shown as -P).
+    function bindWarningCounter(plusId, minusId, wDisplayId, color) {
+        const wDisplay = document.getElementById(wDisplayId);
+
+        document.getElementById(plusId).addEventListener("click", () => {
+            const newW = parseInt(wDisplay.textContent) + 1;
+            wDisplay.textContent = newW;
+
+            if (newW % 3 === 0) {
+                subtractPointFromAllReferees(color);
+                showToast(`3 warnings reached — 1 point removed from all referees (${color})`);
+            }
+        });
+
+        document.getElementById(minusId).addEventListener("click", () => {
+            wDisplay.textContent = Math.max(0, parseInt(wDisplay.textContent) - 1);
+        });
     }
 
-    function bindCounter(plusId, minusId, displayId) {
-        const display = document.getElementById(displayId);
-        document.getElementById(plusId).addEventListener("click", () => {
-            display.textContent = parseInt(display.textContent) + 1;
-            updateMainScore();
-        });
-        document.getElementById(minusId).addEventListener("click", () => {
-            display.textContent = Math.max(0, parseInt(display.textContent) - 1);
-            updateMainScore();
+    // Subtracts 1 point from the given color for every referee, updates their
+    // card display, then recalculates the main majority-vote score.
+    function subtractPointFromAllReferees(color) {
+        for (let i = 1; i <= refereeCount; i++) {
+            const ref = refereeState[i];
+            if (!ref || !ref.connected) continue;
+
+            ref.score[color] = (parseFloat(ref.score[color]) || 0) - 1;
+
+            const box = document.getElementById(`refScore${color === "red" ? "Red" : "Blue"}${i}`);
+            if (box) box.textContent = ref.score[color];
+
+            notifyRefereeScore(i, ref.score);
+        }
+        recalculateMainScore();
+    }
+
+    // Opens the keypad to manually edit a single referee's score for one color.
+    function editRefereeScore(refereeId, color) {
+        const ref = refereeState[refereeId];
+        if (!ref) return;
+
+        openKeypad(null, `Referee ${refereeId} — ${color.toUpperCase()} score`, 0, {
+            allowNegative: true,
+            initialValue: ref.score[color],
+            onConfirm: (value) => {
+                ref.score[color] = value;
+
+                const box = document.getElementById(`refScore${color === "red" ? "Red" : "Blue"}${refereeId}`);
+                if (box) box.textContent = value;
+
+                recalculateMainScore();
+
+                if (ref.connected) {
+                    notifyRefereeScore(refereeId, ref.score);
+                }
+
+                showToast(`Referee ${refereeId} ${color} score set to ${value}`);
+            }
         });
     }
-    bindCounter("wPlusLeft",  "wMinusLeft",  "wScoreLeft");
-    bindCounter("wPlusRight", "wMinusRight", "wScoreRight");
-    bindCounter("pPlusLeft",  "pMinusLeft",  "pScoreLeft");
-    bindCounter("pPlusRight", "pMinusRight", "pScoreRight");
+
+    // Resets a single referee's score back to zero (local UI + main score + server notify).
+    function resetRefereeScore(refereeId) {
+        const ref = refereeState[refereeId];
+        if (!ref) return;
+
+        ref.score = { red: 0, blue: 0 };
+
+        const redBox = document.getElementById(`refScoreRed${refereeId}`);
+        const blueBox = document.getElementById(`refScoreBlue${refereeId}`);
+        if (redBox) redBox.textContent = "0";
+        if (blueBox) blueBox.textContent = "0";
+
+        recalculateMainScore();
+
+        if (ref.connected) {
+            notifyRefereeScore(refereeId, ref.score);
+        }
+
+        showToast(`Referee ${refereeId} score reset`);
+    }
+
+    // Notifies the server (and therefore the referee's tablet) of a score
+    // change that originated from the admin panel (warnings, penalties, reset).
+    async function notifyRefereeScore(refereeId, score) {
+        try {
+            const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
+            const res = await fetch(`${base}/api/score/referee/${refereeId}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "reset_score",
+                    score: { red: score.red, blue: score.blue }
+                })
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        } catch (err) {
+            console.error(`Failed to notify referee ${refereeId} of score update:`, err);
+        }
+    }
+
+    function bindPenaltyMinus(minusId, pDisplayId) {
+        document.getElementById(minusId).addEventListener("click", () => {
+            const pDisplay = document.getElementById(pDisplayId);
+            pDisplay.textContent = Math.max(0, parseInt(pDisplay.textContent) - 1);
+        });
+    }
+
+    function bindPenaltyPlus(plusId, pDisplayId, color) {
+        document.getElementById(plusId).addEventListener("click", () => {
+            const pDisplay = document.getElementById(pDisplayId);
+            pDisplay.textContent = parseInt(pDisplay.textContent) + 1;
+
+            subtractPointFromAllReferees(color);
+            showToast(`Penalty given — 1 point removed from all referees (${color})`);
+        });
+    }
+
+    bindWarningCounter("wPlusLeft",  "wMinusLeft",  "wScoreLeft",  "red");
+    bindWarningCounter("wPlusRight", "wMinusRight", "wScoreRight", "blue");
+    bindPenaltyMinus("pMinusLeft",  "pScoreLeft");
+    bindPenaltyMinus("pMinusRight", "pScoreRight");
+    bindPenaltyPlus("pPlusLeft",  "pScoreLeft",  "red");
+    bindPenaltyPlus("pPlusRight", "pScoreRight", "blue");
 
     renderTimer();
 
@@ -1204,7 +1628,7 @@
     // Placeholder state per referee; real values come from /api/login/admin + /api/tablet/url later
     const refereeState = {};
     for (let i = 1; i <= refereeCount; i++) {
-        refereeState[i] = { score: 0, code: null, url: null };
+        refereeState[i] = { score: { red: 0, blue: 0 }, code: null, url: null, connected: false };
     }
 
     function renderReferees() {
@@ -1214,7 +1638,10 @@
             card.className = "referee-card";
             card.innerHTML = `
                 <div class="referee-title">Referee ${i}</div>
-                <input type="text" class="referee-score-input" id="refScore${i}" value="${refereeState[i].score}" readonly>
+                <div class="referee-score-row">
+                    <div class="referee-score-box red" id="refScoreRed${i}" onclick="editRefereeScore(${i}, 'red')">0</div>
+                    <div class="referee-score-box blue" id="refScoreBlue${i}" onclick="editRefereeScore(${i}, 'blue')">0</div>
+                </div>
                 <div class="referee-btn-row">
                     <button class="referee-btn auth" id="refAuth${i}">AUTH</button>
                     <button class="referee-btn reset" id="refReset${i}">RESET</button>
@@ -1235,9 +1662,9 @@
                 authReferee(i);
             });
 
-            // RESET — placeholder for now (will call /api/score/referee/:id reset)
+            // RESET — resets this referee's score to zero and notifies the server
             document.getElementById(`refReset${i}`).addEventListener("click", () => {
-                showToast(`Referee ${i}: RESET not yet connected`);
+                resetRefereeScore(i);
             });
 
             // CODE — copy to clipboard
@@ -1261,6 +1688,8 @@
     }
 
     // ── REFEREE AUTH ──
+    let currentAuthRefereeId = null;
+
     async function authReferee(refereeId) {
         try {
             const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
@@ -1288,6 +1717,7 @@
     }
 
     function openAuthModal(refereeId, url) {
+        currentAuthRefereeId = refereeId;
         document.getElementById("authModalTitle").textContent = `Referee ${refereeId} link`;
         document.getElementById("authUrlInput").value = url;
 
@@ -1304,6 +1734,7 @@
 
     function closeAuthModal() {
         document.getElementById("authModalOverlay").classList.add("hidden");
+        currentAuthRefereeId = null;
     }
 
     function closeAuthModalOnBackdrop(event) {
@@ -1313,6 +1744,59 @@
     function copyAuthUrl() {
         const url = document.getElementById("authUrlInput").value;
         copyToClipboard(url, "Link copied to clipboard");
+    }
+
+    // ── REFEREE CONNECTED ──
+    function markRefereeConnected(refereeId) {
+        if (!refereeState[refereeId]) return;
+        refereeState[refereeId].connected = true;
+
+        const redBox = document.getElementById(`refScoreRed${refereeId}`);
+        const blueBox = document.getElementById(`refScoreBlue${refereeId}`);
+        if (redBox) redBox.classList.add("connected");
+        if (blueBox) blueBox.classList.add("connected");
+
+        // Close the AUTH modal if it's currently open for this referee
+        if (currentAuthRefereeId === refereeId) {
+            closeAuthModal();
+        }
+
+        showToast(`Referee ${refereeId} connected`);
+    }
+
+    // ── REFEREE SCORE UPDATE ──
+    function updateRefereeScore(refereeId, score) {
+        if (!refereeState[refereeId] || !score) return;
+
+        refereeState[refereeId].score = score;
+
+        const redBox = document.getElementById(`refScoreRed${refereeId}`);
+        const blueBox = document.getElementById(`refScoreBlue${refereeId}`);
+        if (redBox) redBox.textContent = score.red ?? 0;
+        if (blueBox) blueBox.textContent = score.blue ?? 0;
+
+        recalculateMainScore();
+    }
+
+    // Main score = how many referees currently favor red vs blue (majority voting).
+    // A referee favors the color with the higher score; ties count for neither.
+    function recalculateMainScore() {
+        let redVotes = 0;
+        let blueVotes = 0;
+
+        for (let i = 1; i <= refereeCount; i++) {
+            const ref = refereeState[i];
+            if (!ref || !ref.connected || !ref.score) continue;
+
+            const red = parseFloat(ref.score.red) || 0;
+            const blue = parseFloat(ref.score.blue) || 0;
+
+            if (red > blue) redVotes++;
+            else if (blue > red) blueVotes++;
+        }
+
+        document.getElementById("mainScoreLeft").textContent = redVotes;
+        document.getElementById("mainScoreRight").textContent = blueVotes;
     }
 
     function showToast(msg) {

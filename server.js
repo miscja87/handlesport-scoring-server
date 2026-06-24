@@ -2,13 +2,14 @@ import express from "express";
 import cors from "cors";
 import os from "os";
 import path from "path";
+import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { initScores, getScores, updateScore, deleteScore } from "./scores.js";
 import { createMatch, updateMatchDetails, updateMatchState, getMatchState } from "./match.js";
 import { loginAsServer, createRefereeDoc, updateRefereeDoc, deleteRefereeDoc, auth } from "./firestore.js";
-import { ACTIONS } from "./constants.js";
+import { ACTIONS, API_KEY, HANDLESPORT_BACKEND_URL } from "./constants.js";
 import { SPECIALTY_CONFIGURATION } from "./specialty.js";
-import { config } from "process";
 
 // dir name
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -18,6 +19,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+// Constants
+const PORT = 8080;
+const LOCAL_IP = getLocalIP();
+
 // Initial state
 let adminClient = null;
 let clients = [];
@@ -25,6 +30,7 @@ let event = null;
 let ring = null;
 let specialtyCode = null;
 let serverId = null;
+let jwtToken = null;
 
 // admin stream
 app.get("/stream/admin", (req, res) => {
@@ -86,9 +92,12 @@ app.post("/api/login/admin", async (req, res) => {
 
             // Set server id
             serverId = auth.currentUser.uid;
+
+            // Generate JWT token
+            jwtToken = generateJwt(event, ring);
         }
 
-        res.json({ ok: true, uid: serverId, localIp: getLocalIP() });
+        res.json({ ok: true, uid: serverId, token: jwtToken, localIp: LOCAL_IP });
     
     } catch (err) {
         console.error("Login failed:", err);
@@ -123,8 +132,12 @@ app.post("/api/login/referee", async (req, res) => {
         const defaultButton = SPECIALTY_CONFIGURATION[specialtyCode].defaultButton;
 
         console.log("Login referee", event, ring, refereeId);
-        console.log("Creating referee document in Firestore with initial score", startScore);
+        console.log("Creating referee document in Firestore with initial score", startScore);    
         await createRefereeDoc(event, ring, refereeId, { red: startScore, blue: startScore });
+
+        // send score to admin
+        broadcastAdmin({ referee: refereeId, action: ACTIONS.CONNECTED });
+
         res.json({ ok: true, score: referee.score, configuration: { ring, startScore : startScore, buttons : buttons, defaultButton : defaultButton } });
     } catch (err) {
         console.error("Login failed:", err);
@@ -213,7 +226,7 @@ app.get("/api/tablet/url/:refereeId", (req, res) => {
     const referee = currentScores?.[refereeId];
     if (!referee) return res.status(404).json({ error: `Referee ${refereeId} not found` });
 
-    const url = `http://${getLocalIP()}:8080/tablet/${refereeId}?token=${referee.token}`;
+    const url = `http://${LOCAL_IP}:${PORT}/tablet/${refereeId}?token=${referee.token}`;
 
     res.json({ ok: true, refereeId, url });
 });
@@ -259,11 +272,37 @@ app.post("/api/match/details", (req, res) => {
     res.json({ ok: true });
 });
 
+// Get categories
+app.get("/api/categories", async (req, res) => {
+
+    try {
+        validate(res, event, ring);
+
+        const response = await fetch(
+            `${HANDLESPORT_BACKEND_URL}/scoring/getCategories?specialty_code=${specialtyCode}&id_event=${event}&id_ring=${ring}`,
+            { headers: { token: jwtToken }}
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            
+            return res.status(response.status).json(data);
+        }
+
+        return res.json(data);
+
+    } catch (err) {
+        
+        console.error(err);
+
+        return res.status(500).json({ok: false, error: "Failed to fetch categories"});
+    }
+});
+
 // Start server
 export async function startServer() {
-    const PORT = 8080;
-    const LOCAL_IP = getLocalIP();    
-
+    
     app.listen(PORT, "0.0.0.0", () => {
         console.log(`Server started on http://localhost:${PORT}`);
         console.log(`IP local: ${LOCAL_IP}`);        
@@ -309,6 +348,22 @@ function getLocalIP() {
             }
         }
     }
+}
+
+function generateJwt(event, ring) {
+    const key = crypto
+        .createHash('md5')
+        .update(API_KEY)
+        .digest('hex');
+
+    const payload = {
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 86400,
+        event: event,
+        ring: ring
+    };
+
+    return jwt.sign(payload, key, { algorithm: 'HS256' });
 }
 
 app.get("/tablet/:id", (req, res) => {

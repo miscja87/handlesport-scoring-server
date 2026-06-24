@@ -26,7 +26,7 @@ async function loginAsServer(event, ring)
     const getCustomToken = httpsCallable(functions, "getCustomToken");
     const result = await getCustomToken({ tokenId : uid, role : "server", event : `event_${event}`, ring : `ring_${ring}` });
     const token = result.data.token;
-  
+
     await signInWithCustomToken(auth, token);
     await waitForAuthInitialized(auth);
     console.log("Logged server successful as", auth.currentUser.uid);
