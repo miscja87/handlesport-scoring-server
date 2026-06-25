@@ -1680,6 +1680,8 @@
                 notifyRefereeScore(i, refereeState[i].score);
             }
         }
+
+        notifyMatchScoreState();
     });
 
     document.getElementById("roundDuration").addEventListener("change", (e) => {
@@ -1879,6 +1881,39 @@
         }
     }
 
+    // Notifies the server of the current overall score, warnings and minus
+    // points (the general W/−P boxes, not per-referee scores).
+    async function notifyMatchScoreState() {
+        try {
+            const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
+
+            const body = {
+                score: {
+                    red: parseInt(document.getElementById("mainScoreLeft").textContent) || 0,
+                    blue: parseInt(document.getElementById("mainScoreRight").textContent) || 0
+                },
+                warnings: {
+                    red: parseInt(document.getElementById("wScoreLeft").textContent) || 0,
+                    blue: parseInt(document.getElementById("wScoreRight").textContent) || 0
+                },
+                minusPoints: {
+                    red: parseInt(document.getElementById("pScoreLeft").textContent) || 0,
+                    blue: parseInt(document.getElementById("pScoreRight").textContent) || 0
+                }
+            };
+
+            const res = await fetch(`${base}/api/match/details`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        } catch (err) {
+            console.error("Failed to notify match score state:", err);
+        }
+    }
+
     // Array is sorted by id_match descending (4, 3, 2, 1).
     // PREV (+1 on id_match) moves to the previous array index.
     // NEXT (-1 on id_match) moves to the next array index.
@@ -1989,13 +2024,16 @@
             wDisplay.textContent = newW;
 
             if (newW % 3 === 0) {
-                subtractPointFromAllReferees(color);
+                subtractPointFromAllReferees(color); // already notifies score state internally
                 showToast(`3 warnings reached — 1 point removed from all referees (${color})`);
+            } else {
+                notifyMatchScoreState();
             }
         });
 
         document.getElementById(minusId).addEventListener("click", () => {
             wDisplay.textContent = Math.max(0, parseInt(wDisplay.textContent) - 1);
+            notifyMatchScoreState();
         });
     }
 
@@ -2101,6 +2139,7 @@
         document.getElementById(minusId).addEventListener("click", () => {
             const pDisplay = document.getElementById(pDisplayId);
             pDisplay.textContent = Math.max(0, parseInt(pDisplay.textContent) - 1);
+            notifyMatchScoreState();
         });
     }
 
@@ -2310,6 +2349,8 @@
 
         document.getElementById("mainScoreLeft").textContent = redVotes;
         document.getElementById("mainScoreRight").textContent = blueVotes;
+
+        notifyMatchScoreState();
     }
 
     function showToast(msg) {
