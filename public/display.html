@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
+<!-- saved from url=(0048)file:///C:/Users/miscj/Downloads/display_11.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scoreboard</title>
-    <link rel="icon" href="/favicon.ico">
+    <link rel="icon" href="file:///C:/favicon.ico">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -40,7 +40,7 @@
             grid-template-columns: 1fr 1fr 1fr;
             align-items: center;
             padding: 1vh 2.5vw 0;
-            font-size: 1.8vh;
+            font-size: 2.8vh;
             font-weight: 900;
             letter-spacing: 1px;
         }
@@ -54,42 +54,85 @@
             grid-template-columns: auto 1fr auto;
             align-items: center;
             gap: 1.5vw;
-            padding: 0.6vh 2.5vw 0;
+            padding: 0.8vh 2.5vw 0;
         }
         .flag {
-            width: 4vh;
-            height: 4vh;
+            width: 5.5vh;
+            height: 5.5vh;
             border-radius: 50%;
             overflow: hidden;
             background: #333;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.8vh;
+            font-size: 2.4vh;
             border: 3px solid rgba(255,255,255,0.3);
             flex-shrink: 0;
         }
         .name-blue {
-            font-size: 2.4vh;
+            font-size: 3.6vh;
             font-weight: 900;
             letter-spacing: 1px;
         }
         .name-red {
-            font-size: 2.4vh;
+            font-size: 3.6vh;
             font-weight: 900;
             letter-spacing: 1px;
             text-align: right;
         }
 
-        /* ── TIMER ROW ── */
-        .timer-row {
-            display: flex;
-            flex-direction: column;
+        /* ── CENTRAL PANEL: 3x3 grid, shared rows guarantee alignment ── */
+        .central-panel {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            grid-template-rows: auto auto auto;
             align-items: center;
-            justify-content: center;
-            gap: 0.4vh;
-            padding: 0.6vh 0;
+            justify-items: center;
+            padding: 1vh 2.5vw;
+            gap: 1vh 2vw;
         }
+
+        .blue-w, .blue-p { justify-self: start; }
+        .red-w,  .red-p  { justify-self: end; }
+
+        .stat-block {
+            display: flex;
+            align-items: baseline;
+            gap: 0.8vw;
+        }
+        .stat-label {
+            font-size: 5vh;
+            font-weight: 900;
+        }
+        .stat-value {
+            font-size: 5vh;
+            font-weight: 900;
+        }
+
+        .main-score {
+            font-size: 36vh;
+            font-weight: 900;
+            line-height: 1;
+            transition: text-shadow 0.4s ease-out;
+        }
+        .main-score.blue-text { color: #2aa8e0; }
+        .main-score.red-text { color: #ff4444; }
+
+        .main-score.leading {
+            text-shadow: 0 0 0.4em currentColor, 0 0 0.8em currentColor;
+        }
+
+        @keyframes scoreBump {
+            0%   { transform: scale(1);    filter: brightness(1); }
+            30%  { transform: scale(1.3); filter: brightness(1.8); }
+            100% { transform: scale(1);    filter: brightness(1); }
+        }
+        .main-score.bump {
+            display: inline-block;
+            transform-origin: center center;
+            animation: scoreBump 0.5s ease-out !important;
+        }
+
         .round-indicator {
             font-size: 3.4vh;
             font-weight: 900;
@@ -99,11 +142,10 @@
 
         .timer-ring-wrap {
             position: relative;
-            width: 24vh;
-            height: 24vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            width: 46vh;
+            height: 46vh;
+            display: grid;
+            place-items: center;
         }
         .timer-ring-svg {
             position: absolute;
@@ -115,15 +157,14 @@
         .timer-ring-track {
             fill: none;
             stroke: #1a2030;
-            stroke-width: 8;
+            stroke-width: 6;
         }
         .timer-ring-progress {
             fill: none;
             stroke: #38e07a;
-            stroke-width: 8;
+            stroke-width: 6;
             stroke-linecap: round;
-            stroke-dasharray: 327;
-            stroke-dashoffset: 0;
+            stroke-dasharray: 301.6;
             transition: stroke-dashoffset 1s linear, stroke 0.3s;
         }
         .timer-ring-progress.warning { stroke: #e05a5a; }
@@ -131,45 +172,14 @@
 
         .timer-display {
             position: relative;
-            font-size: 6.5vh;
+            grid-area: 1 / 1;
+            text-align: center;
+            font-size: 9vh;
             font-weight: 900;
+            line-height: 1;
             font-variant-numeric: tabular-nums;
             color: white;
         }
-
-        /* ── W / SCORE / -P ROW ── */
-        .score-row {
-            display: grid;
-            grid-template-columns: auto 1fr 1fr auto;
-            align-items: center;
-            padding: 0.6vh 2.5vw;
-            gap: 10px;
-        }
-        .stat-label {
-            font-size: 4.8vh;
-            font-weight: 900;
-        }
-        .stat-value {
-            font-size: 4.8vh;
-            font-weight: 900;
-        }
-        .stat-left, .stat-right {
-            display: flex;
-            align-items: center;
-            gap: 1vw;
-        }
-        .stat-right { justify-content: flex-end; }
-
-        .main-score {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 13vh;
-            font-weight: 900;
-            line-height: 1;
-        }
-        .main-score.blue-text { color: #2aa8e0; }
-        .main-score.red-text { color: #ff4444; }
 
         /* ── REFEREE ROW ── */
         .referee-section {
@@ -260,7 +270,7 @@
 </head>
 <body>
 
-<div class="connecting" id="connecting">Waiting for admin panel...</div>
+<div class="connecting" id="connecting">displayBridge not available — check preload script.</div>
 
 <div class="board">
 
@@ -281,49 +291,34 @@
         <div class="flag" id="flagRed">🏳️</div>
     </div>
 
-    <!-- TIMER ROW -->
-    <div class="timer-row">
-        <div class="round-indicator" id="roundIndicatorRow">R <span id="roundIndicator">1</span>/<span id="roundTotal">1</span></div>
-        <div class="timer-ring-wrap">
-            <svg class="timer-ring-svg" viewBox="0 0 120 120">
-                <circle class="timer-ring-track" cx="60" cy="60" r="52"></circle>
-                <circle class="timer-ring-progress" id="timerRingProgress" cx="60" cy="60" r="52"></circle>
-            </svg>
-            <div class="timer-display" id="timerDisplay">02:00</div>
-        </div>
-    </div>
-
-    <!-- W ROW -->
-    <div class="score-row">
-        <div class="stat-left">
+    <!-- CENTRAL PANEL: blue stats | timer ring | red stats -->
+    <div class="central-panel">
+        <div class="stat-block blue-w">
             <span class="stat-label">W</span>
             <span class="stat-value" id="wBlue">0</span>
         </div>
-        <div></div>
-        <div></div>
-        <div class="stat-right">
+        <div class="round-indicator" id="roundIndicatorRow">R <span id="roundIndicator">1</span>/<span id="roundTotal">1</span></div>
+        <div class="stat-block red-w">
             <span class="stat-value" id="wRed">0</span>
             <span class="stat-label">W</span>
         </div>
-    </div>
 
-    <!-- MAIN SCORE ROW -->
-    <div class="score-row">
-        <div></div>
-        <div class="main-score blue-text" id="mainScoreBlue">0</div>
-        <div class="main-score red-text" id="mainScoreRed">0</div>
-        <div></div>
-    </div>
+        <div class="main-score blue-text blue-score" id="mainScoreBlue">0</div>
+        <div class="timer-ring-wrap">
+            <svg class="timer-ring-svg" viewBox="0 0 120 120">
+                <circle class="timer-ring-track" cx="60" cy="60" r="48"></circle>
+                <circle class="timer-ring-progress" id="timerRingProgress" cx="60" cy="60" r="48"></circle>
+            </svg>
+            <div class="timer-display" id="timerDisplay">02:00</div>
+        </div>
+        <div class="main-score red-text red-score" id="mainScoreRed">0</div>
 
-    <!-- -P ROW -->
-    <div class="score-row">
-        <div class="stat-left">
+        <div class="stat-block blue-p">
             <span class="stat-label">-P</span>
             <span class="stat-value" id="pBlue">0</span>
         </div>
         <div></div>
-        <div></div>
-        <div class="stat-right">
+        <div class="stat-block red-p">
             <span class="stat-value" id="pRed">0</span>
             <span class="stat-label">-P</span>
         </div>
@@ -381,14 +376,16 @@
         return `${m}:${s}`;
     }
 
-    const RING_CIRCUMFERENCE = 327; // 2 * PI * 52, matches stroke-dasharray in CSS
+    const RING_CIRCUMFERENCE = 301.6; // 2 * PI * 48, matches stroke-dasharray in CSS
 
     function updateTimerRing(remaining, total, isRunning) {
         const ring = document.getElementById("timerRingProgress");
-        const safeTotal = total > 0 ? total : 1;
+        ring.style.strokeDasharray = RING_CIRCUMFERENCE;
+
+        const safeTotal = (typeof total === "number" && total > 0) ? total : (parseInt(total) || 120);
         const fraction = Math.max(0, Math.min(1, remaining / safeTotal));
 
-        ring.style.strokeDashoffset = RING_CIRCUMFERENCE * (1 - fraction);
+        ring.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - fraction));
 
         ring.classList.remove("warning", "idle");
         if (!isRunning) {
@@ -396,6 +393,40 @@
         } else if (remaining <= 10) {
             ring.classList.add("warning");
         }
+    }
+
+    // ── MAIN SCORE: bump animation on change + glow on the leading color ──
+    let lastScoreRed = null;
+    let lastScoreBlue = null;
+
+    function applyMainScore(red, blue) {
+        const redEl = document.getElementById("mainScoreRed");
+        const blueEl = document.getElementById("mainScoreBlue");
+
+        if (lastScoreRed !== null && red !== lastScoreRed) {
+            console.log("[display] RED score changed", lastScoreRed, "->", red, "- bumping");
+            bumpScore(redEl);
+        }
+        if (lastScoreBlue !== null && blue !== lastScoreBlue) {
+            console.log("[display] BLUE score changed", lastScoreBlue, "->", blue, "- bumping");
+            bumpScore(blueEl);
+        }
+
+        redEl.textContent = red;
+        blueEl.textContent = blue;
+
+        redEl.classList.toggle("leading", red > blue);
+        blueEl.classList.toggle("leading", blue > red);
+
+        lastScoreRed = red;
+        lastScoreBlue = blue;
+    }
+
+    function bumpScore(el) {
+        el.classList.remove("bump");
+        void el.offsetWidth;
+        el.classList.add("bump");
+        setTimeout(() => el.classList.remove("bump"), 500);
     }
 
     // ── APPLY INCOMING STATE ──
@@ -429,8 +460,7 @@
             document.getElementById("pBlue").textContent = payload.minusPoints.blue ?? 0;
         }
         if (payload.score) {
-            document.getElementById("mainScoreRed").textContent = payload.score.red ?? 0;
-            document.getElementById("mainScoreBlue").textContent = payload.score.blue ?? 0;
+            applyMainScore(payload.score.red ?? 0, payload.score.blue ?? 0);
         }
 
         if (payload.referees) {
@@ -462,5 +492,6 @@
     }
 </script>
 
-</body>
-</html>
+
+
+</body></html>
