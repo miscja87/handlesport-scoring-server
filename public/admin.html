@@ -48,6 +48,26 @@
             font-weight: 400;
         }
 
+        .display-toggle-btn {
+            margin-left: 16px;
+            background: #2a3550;
+            border: 1px solid #3a4560;
+            color: #c8ccd8;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            vertical-align: middle;
+        }
+        .display-toggle-btn.active {
+            background: #2a9a5a;
+            border-color: #2a9a5a;
+            color: white;
+        }
+        .display-toggle-btn:active { filter: brightness(1.2); }
+
         /* ── CATEGORY BAR ── */
         .category-bar {
             display: grid;
@@ -919,7 +939,9 @@
 
     <!-- TOP BAR -->
     <div class="topbar">
-        <div class="ring-title">RING <span id="ringNumber">1</span> - <span class="event-name" id="eventName">Test Event</span></div>
+        <div class="ring-title">RING <span id="ringNumber">1</span> - <span class="event-name" id="eventName">Test Event</span>
+            <button class="display-toggle-btn" onclick="toggleDisplayWindow()" id="displayToggleBtn">📺 OPEN DISPLAY</button>
+        </div>
 
         <div class="topbar-row2">
             <!-- CATEGORY BAR -->
@@ -1285,6 +1307,7 @@
         if (isRunning) {
             timerDisplay.classList.add(remainingSeconds <= 10 ? "warning" : "running");
         }
+        pushDisplayUpdate();
     }
 
     function setState(running) {
@@ -1835,6 +1858,7 @@
         updateMatchStatusBadge(match.state);
         updateMatchNavButtons();
         notifyMatchDetails(match);
+        pushDisplayUpdate();
     }
 
     function updateMatchStatusBadge(state) {
@@ -1881,9 +1905,82 @@
         }
     }
 
-    // Notifies the server of the current overall score, warnings and minus
-    // points (the general W/−P boxes, not per-referee scores).
+    // ── DISPLAY WINDOW (second monitor) ──
+    let displayWindowOpen = false;
+
+    function toggleDisplayWindow() {
+        if (!window.displayBridge) {
+            showToast("Display bridge not available");
+            return;
+        }
+
+        const btn = document.getElementById("displayToggleBtn");
+
+        if (displayWindowOpen) {
+            window.displayBridge.closeDisplay();
+            displayWindowOpen = false;
+            btn.textContent = "📺 OPEN DISPLAY";
+            btn.classList.remove("active");
+        } else {
+            window.displayBridge.openDisplay();
+            displayWindowOpen = true;
+            btn.textContent = "📺 DISPLAY ON";
+            btn.classList.add("active");
+            setTimeout(pushDisplayUpdate, 400); // give the new window time to attach its listener
+        }
+    }
+
+    // Collects the full current state and sends it to the public display
+    // window via Electron IPC (window.displayBridge, exposed by preload-admin.cjs).
+    function pushDisplayUpdate() {
+        if (!window.displayBridge) return;
+
+        let referees = [];
+        try {
+            for (let i = 1; i <= refereeCount; i++) {
+                const ref = refereeState[i];
+                referees.push(ref && ref.connected && ref.enabled ? { score: ref.score } : { score: { red: 0, blue: 0 } });
+            }
+        } catch (err) {
+            // refereeState/refereeCount not initialized yet (e.g. very first renderTimer() call) — skip referees this time.
+            return;
+        }
+
+        window.displayBridge.update({
+            ring: document.getElementById("ringNumber")?.textContent,
+            category: document.getElementById("categoryDisplay")?.textContent,
+            matchNumber: document.getElementById("matchNumber")?.value,
+
+            nameRed: document.getElementById("nameLeft")?.textContent,
+            nameBlue: document.getElementById("nameRight")?.textContent,
+
+            roundIndicator: document.getElementById("roundIndicator")?.textContent,
+            roundTotal: document.getElementById("roundTotal")?.textContent,
+
+            remainingSeconds: remainingSeconds,
+            isRunning: isRunning,
+
+            score: {
+                red: parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0,
+                blue: parseInt(document.getElementById("mainScoreRight")?.textContent) || 0
+            },
+            warnings: {
+                red: parseInt(document.getElementById("wScoreLeft")?.textContent) || 0,
+                blue: parseInt(document.getElementById("wScoreRight")?.textContent) || 0
+            },
+            minusPoints: {
+                red: parseInt(document.getElementById("pScoreLeft")?.textContent) || 0,
+                blue: parseInt(document.getElementById("pScoreRight")?.textContent) || 0
+            },
+
+            referees: referees
+        });
+    }
+
+    // Notifies the server of the current score/warnings/minusPoints state
+    // (the main top boxes), independent of the per-referee data.
     async function notifyMatchScoreState() {
+        pushDisplayUpdate();
         try {
             const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
 

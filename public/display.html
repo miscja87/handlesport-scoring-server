@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scoreboard</title>
+    <link rel="icon" href="/favicon.ico">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #0a0d14;
+            font-family: 'Arial', sans-serif;
+            color: white;
+        }
+
+        .board {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            /* Split background: blue left, black center, red right */
+            background: linear-gradient(
+                to right,
+                #1a6fa8 0%,
+                #0a0d14 42%,
+                #0a0d14 58%,
+                #cc0000 100%
+            );
+        }
+
+        /* ── TOP ROW ── */
+        .top-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            align-items: center;
+            padding: 1vh 2.5vw 0;
+            font-size: 1.8vh;
+            font-weight: 900;
+            letter-spacing: 1px;
+        }
+        .top-row .ring-label { text-align: left; }
+        .top-row .category-label { text-align: center; font-weight: 400; }
+        .top-row .match-label { text-align: right; }
+
+        /* ── NAME ROW ── */
+        .name-row {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 1.5vw;
+            padding: 0.6vh 2.5vw 0;
+        }
+        .flag {
+            width: 4vh;
+            height: 4vh;
+            border-radius: 50%;
+            overflow: hidden;
+            background: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8vh;
+            border: 3px solid rgba(255,255,255,0.3);
+            flex-shrink: 0;
+        }
+        .name-blue {
+            font-size: 2.4vh;
+            font-weight: 900;
+            letter-spacing: 1px;
+        }
+        .name-red {
+            font-size: 2.4vh;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-align: right;
+        }
+
+        /* ── TIMER ROW ── */
+        .timer-row {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4vh;
+            padding: 0.6vh 0;
+        }
+        .round-indicator {
+            font-size: 3.4vh;
+            font-weight: 900;
+            color: white;
+            letter-spacing: 1px;
+        }
+
+        .timer-ring-wrap {
+            position: relative;
+            width: 24vh;
+            height: 24vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .timer-ring-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+        .timer-ring-track {
+            fill: none;
+            stroke: #1a2030;
+            stroke-width: 8;
+        }
+        .timer-ring-progress {
+            fill: none;
+            stroke: #38e07a;
+            stroke-width: 8;
+            stroke-linecap: round;
+            stroke-dasharray: 327;
+            stroke-dashoffset: 0;
+            transition: stroke-dashoffset 1s linear, stroke 0.3s;
+        }
+        .timer-ring-progress.warning { stroke: #e05a5a; }
+        .timer-ring-progress.idle { stroke: #4a5578; }
+
+        .timer-display {
+            position: relative;
+            font-size: 6.5vh;
+            font-weight: 900;
+            font-variant-numeric: tabular-nums;
+            color: white;
+        }
+
+        /* ── W / SCORE / -P ROW ── */
+        .score-row {
+            display: grid;
+            grid-template-columns: auto 1fr 1fr auto;
+            align-items: center;
+            padding: 0.6vh 2.5vw;
+            gap: 10px;
+        }
+        .stat-label {
+            font-size: 4.8vh;
+            font-weight: 900;
+        }
+        .stat-value {
+            font-size: 4.8vh;
+            font-weight: 900;
+        }
+        .stat-left, .stat-right {
+            display: flex;
+            align-items: center;
+            gap: 1vw;
+        }
+        .stat-right { justify-content: flex-end; }
+
+        .main-score {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13vh;
+            font-weight: 900;
+            line-height: 1;
+        }
+        .main-score.blue-text { color: #2aa8e0; }
+        .main-score.red-text { color: #ff4444; }
+
+        /* ── REFEREE ROW ── */
+        .referee-section {
+            padding: 0.8vh 2.5vw 0;
+        }
+        .referee-labels {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            text-align: center;
+        }
+        .referee-labels span {
+            font-size: 1.2vh;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #c8ccd8;
+        }
+        .referee-boxes {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 0.8vw;
+            margin-top: 0.4vh;
+        }
+        .referee-box {
+            background: #2a3142;
+            border: 1px solid #3a4560;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.2vh;
+            font-weight: 900;
+            color: white;
+            height: 5vh;
+        }
+
+        /* ── NEXT MATCH ROWS ── */
+        .next-matches {
+            padding: 0.8vh 2.5vw 1.2vh;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6vh;
+        }
+        .next-match-row {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            gap: 1vw;
+        }
+        .next-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.6vh 1vw;
+            border-radius: 4px;
+            font-size: 1.3vh;
+            font-weight: 700;
+        }
+        .next-bar.blue {
+            background: linear-gradient(to right, #1a6fa8, #2a9ad8);
+        }
+        .next-bar.red {
+            background: linear-gradient(to right, #ff5a5a, #cc0000);
+            flex-direction: row-reverse;
+        }
+        .next-bar .icon { font-size: 1.1em; opacity: 0.8; }
+        .next-label {
+            text-align: center;
+            font-size: 1.2vh;
+            font-weight: 700;
+            color: #c8ccd8;
+            letter-spacing: 0.5px;
+        }
+
+        .hidden { display: none !important; }
+
+        .connecting {
+            position: fixed;
+            inset: 0;
+            background: #0a0d14;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #8a93a8;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body>
+
+<div class="connecting" id="connecting">Waiting for admin panel...</div>
+
+<div class="board">
+
+    <!-- TOP ROW -->
+    <div class="top-row">
+        <div class="ring-label">RING <span id="ringNumber">1</span></div>
+        <div class="category-label" id="categoryLabel">Category</div>
+        <div class="match-label">Match <span id="matchNumber">1</span></div>
+    </div>
+
+    <!-- NAME ROW -->
+    <div class="name-row">
+        <div class="flag" id="flagBlue">🏳️</div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="name-blue" id="nameBlue">BLUE</div>
+            <div class="name-red" id="nameRed">RED</div>
+        </div>
+        <div class="flag" id="flagRed">🏳️</div>
+    </div>
+
+    <!-- TIMER ROW -->
+    <div class="timer-row">
+        <div class="round-indicator" id="roundIndicatorRow">R <span id="roundIndicator">1</span>/<span id="roundTotal">1</span></div>
+        <div class="timer-ring-wrap">
+            <svg class="timer-ring-svg" viewBox="0 0 120 120">
+                <circle class="timer-ring-track" cx="60" cy="60" r="52"></circle>
+                <circle class="timer-ring-progress" id="timerRingProgress" cx="60" cy="60" r="52"></circle>
+            </svg>
+            <div class="timer-display" id="timerDisplay">02:00</div>
+        </div>
+    </div>
+
+    <!-- W ROW -->
+    <div class="score-row">
+        <div class="stat-left">
+            <span class="stat-label">W</span>
+            <span class="stat-value" id="wBlue">0</span>
+        </div>
+        <div></div>
+        <div></div>
+        <div class="stat-right">
+            <span class="stat-value" id="wRed">0</span>
+            <span class="stat-label">W</span>
+        </div>
+    </div>
+
+    <!-- MAIN SCORE ROW -->
+    <div class="score-row">
+        <div></div>
+        <div class="main-score blue-text" id="mainScoreBlue">0</div>
+        <div class="main-score red-text" id="mainScoreRed">0</div>
+        <div></div>
+    </div>
+
+    <!-- -P ROW -->
+    <div class="score-row">
+        <div class="stat-left">
+            <span class="stat-label">-P</span>
+            <span class="stat-value" id="pBlue">0</span>
+        </div>
+        <div></div>
+        <div></div>
+        <div class="stat-right">
+            <span class="stat-value" id="pRed">0</span>
+            <span class="stat-label">-P</span>
+        </div>
+    </div>
+
+    <!-- REFEREES -->
+    <div class="referee-section">
+        <div class="referee-labels">
+            <span>REF. 1</span>
+            <span>REF. 2</span>
+            <span>REF. 3</span>
+            <span>REF. 4</span>
+        </div>
+        <div class="referee-boxes" id="refereeBoxes">
+            <div class="referee-box" id="ref1blue">0</div>
+            <div class="referee-box" id="ref1red">0</div>
+            <div class="referee-box" id="ref2blue">0</div>
+            <div class="referee-box" id="ref2red">0</div>
+            <div class="referee-box" id="ref3blue">0</div>
+            <div class="referee-box" id="ref3red">0</div>
+            <div class="referee-box" id="ref4blue">0</div>
+            <div class="referee-box" id="ref4red">0</div>
+        </div>
+    </div>
+
+    <!-- NEXT MATCHES -->
+    <div class="next-matches">
+        <div class="next-match-row">
+            <div class="next-bar blue"><span class="icon">👤</span><span id="next1Blue">BLUE</span></div>
+            <div class="next-label">NEXT MATCH #1</div>
+            <div class="next-bar red"><span id="next1Red">RED</span><span class="icon">👤</span></div>
+        </div>
+        <div class="next-match-row">
+            <div class="next-bar blue"><span class="icon">👤</span><span id="next2Blue">BLUE</span></div>
+            <div class="next-label">NEXT MATCH #2</div>
+            <div class="next-bar red"><span id="next2Red">RED</span><span class="icon">👤</span></div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // Country code -> flag emoji (basic ISO mapping, extend as needed)
+    function flagEmoji(countryName) {
+        const map = {
+            ITALY: "🇮🇹", FRANCE: "🇫🇷", SPAIN: "🇪🇸", GERMANY: "🇩🇪",
+            "UNITED KINGDOM": "🇬🇧", USA: "🇺🇸", "UNITED STATES": "🇺🇸"
+        };
+        return map[(countryName || "").toUpperCase()] || "🏳️";
+    }
+
+    function formatTime(seconds) {
+        const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+        const s = (seconds % 60).toString().padStart(2, "0");
+        return `${m}:${s}`;
+    }
+
+    const RING_CIRCUMFERENCE = 327; // 2 * PI * 52, matches stroke-dasharray in CSS
+
+    function updateTimerRing(remaining, total, isRunning) {
+        const ring = document.getElementById("timerRingProgress");
+        const safeTotal = total > 0 ? total : 1;
+        const fraction = Math.max(0, Math.min(1, remaining / safeTotal));
+
+        ring.style.strokeDashoffset = RING_CIRCUMFERENCE * (1 - fraction);
+
+        ring.classList.remove("warning", "idle");
+        if (!isRunning) {
+            ring.classList.add("idle");
+        } else if (remaining <= 10) {
+            ring.classList.add("warning");
+        }
+    }
+
+    // ── APPLY INCOMING STATE ──
+    // payload shape mirrors what admin.html tracks internally; every field is optional.
+    function applyState(payload) {
+        document.getElementById("connecting").classList.add("hidden");
+
+        if (payload.ring !== undefined) document.getElementById("ringNumber").textContent = payload.ring;
+        if (payload.category !== undefined) document.getElementById("categoryLabel").textContent = payload.category;
+        if (payload.matchNumber !== undefined) document.getElementById("matchNumber").textContent = payload.matchNumber;
+
+        if (payload.nameRed !== undefined) document.getElementById("nameRed").textContent = payload.nameRed;
+        if (payload.nameBlue !== undefined) document.getElementById("nameBlue").textContent = payload.nameBlue;
+        if (payload.countryRed !== undefined) document.getElementById("flagRed").textContent = flagEmoji(payload.countryRed);
+        if (payload.countryBlue !== undefined) document.getElementById("flagBlue").textContent = flagEmoji(payload.countryBlue);
+
+        if (payload.roundIndicator !== undefined) document.getElementById("roundIndicator").textContent = payload.roundIndicator;
+        if (payload.roundTotal !== undefined) document.getElementById("roundTotal").textContent = payload.roundTotal;
+
+        if (payload.remainingSeconds !== undefined) {
+            document.getElementById("timerDisplay").textContent = formatTime(payload.remainingSeconds);
+            updateTimerRing(payload.remainingSeconds, payload.totalSeconds, payload.isRunning);
+        }
+
+        if (payload.warnings) {
+            document.getElementById("wRed").textContent = payload.warnings.red ?? 0;
+            document.getElementById("wBlue").textContent = payload.warnings.blue ?? 0;
+        }
+        if (payload.minusPoints) {
+            document.getElementById("pRed").textContent = payload.minusPoints.red ?? 0;
+            document.getElementById("pBlue").textContent = payload.minusPoints.blue ?? 0;
+        }
+        if (payload.score) {
+            document.getElementById("mainScoreRed").textContent = payload.score.red ?? 0;
+            document.getElementById("mainScoreBlue").textContent = payload.score.blue ?? 0;
+        }
+
+        if (payload.referees) {
+            payload.referees.forEach((ref, idx) => {
+                const i = idx + 1;
+                const redBox = document.getElementById(`ref${i}red`);
+                const blueBox = document.getElementById(`ref${i}blue`);
+                if (redBox) redBox.textContent = ref?.score?.red ?? 0;
+                if (blueBox) blueBox.textContent = ref?.score?.blue ?? 0;
+            });
+        }
+
+        if (payload.nextMatches) {
+            payload.nextMatches.forEach((m, idx) => {
+                const i = idx + 1;
+                const redEl = document.getElementById(`next${i}Red`);
+                const blueEl = document.getElementById(`next${i}Blue`);
+                if (redEl && m) redEl.textContent = m.red || "RED";
+                if (blueEl && m) blueEl.textContent = m.blue || "BLUE";
+            });
+        }
+    }
+
+    // ── IPC LISTENER ──
+    if (window.displayBridge) {
+        window.displayBridge.onUpdate(applyState);
+    } else {
+        document.getElementById("connecting").textContent = "displayBridge not available — check preload script.";
+    }
+</script>
+
+</body>
+</html>
