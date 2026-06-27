@@ -39,7 +39,7 @@
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
             align-items: center;
-            padding: 1vh 2.5vw 0;
+            padding: 0.5vh 2.5vw 0;
             font-size: 2.8vh;
             font-weight: 900;
             letter-spacing: 1px;
@@ -54,28 +54,24 @@
             grid-template-columns: auto 1fr auto;
             align-items: center;
             gap: 1.5vw;
-            padding: 0.8vh 2.5vw 0;
+            padding: 0.4vh 2.5vw 0;
         }
         .flag {
-            width: 5.5vh;
-            height: 5.5vh;
+            width: 7vh;
+            height: 7vh;
             border-radius: 50%;
-            overflow: hidden;
-            background: #333;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2.4vh;
+            object-fit: cover;
             border: 3px solid rgba(255,255,255,0.3);
             flex-shrink: 0;
+            display: block;
         }
         .name-blue {
-            font-size: 3.6vh;
+            font-size: 4.6vh;
             font-weight: 900;
             letter-spacing: 1px;
         }
         .name-red {
-            font-size: 3.6vh;
+            font-size: 4.6vh;
             font-weight: 900;
             letter-spacing: 1px;
             text-align: right;
@@ -88,12 +84,25 @@
             grid-template-rows: auto auto auto;
             align-items: center;
             justify-items: center;
-            padding: 1vh 2.5vw;
-            gap: 1vh 2vw;
+            padding: 0.3vh 2.5vw;
+            gap: 0.3vh 5vw;
         }
 
-        .blue-w, .blue-p { justify-self: start; }
-        .red-w,  .red-p  { justify-self: end; }
+        .score-side-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+        }
+        .blue-side-group { justify-self: stretch; }
+        .red-side-group { justify-self: stretch; }
+
+        .side-stat-col {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 30vh;
+        }
 
         .stat-block {
             display: flex;
@@ -101,11 +110,11 @@
             gap: 0.8vw;
         }
         .stat-label {
-            font-size: 5vh;
+            font-size: 6.5vh;
             font-weight: 900;
         }
         .stat-value {
-            font-size: 5vh;
+            font-size: 6.5vh;
             font-weight: 900;
         }
 
@@ -134,18 +143,19 @@
         }
 
         .round-indicator {
-            font-size: 6vh;
+            font-size: 6.5vh;
             font-weight: 900;
             color: white;
             letter-spacing: 1px;
-            width: 46vh;
+            width: 40vh;
             text-align: center;
+            margin-top: 0.3vh;
         }
 
         .timer-ring-wrap {
             position: relative;
-            width: 46vh;
-            height: 46vh;
+            width: 40vh;
+            height: 40vh;
             display: grid;
             place-items: center;
         }
@@ -195,7 +205,7 @@
 
         /* ── REFEREE ROW ── */
         .referee-section {
-            padding: 1vh 2.5vw 0;
+            padding: 0.5vh 2.5vw 0;
         }
         .referee-labels {
             display: grid;
@@ -225,20 +235,22 @@
             font-weight: 900;
             color: white;
             height: 7.5vh;
-            transition: background 0.2s, border-color 0.2s;
+            transition: background 0.2s, border-color 0.2s, filter 0.4s;
         }
         .referee-box.red-active {
-            background: #cc0000;
-            border-color: #ff5a5a;
+            background: #8a1010;
+            border-color: #c04040;
+            filter: brightness(var(--intensity, 1)) saturate(var(--intensity, 1));
         }
         .referee-box.blue-active {
-            background: #1a6fa8;
-            border-color: #2aa8e0;
+            background: #0f4a70;
+            border-color: #2070a0;
+            filter: brightness(var(--intensity, 1)) saturate(var(--intensity, 1));
         }
 
         /* ── NEXT MATCH ROWS ── */
         .next-matches {
-            padding: 1.2vh 2.5vw 1.8vh;
+            padding: 0.2vh 2.5vw 2.2vh;
             display: flex;
             flex-direction: column;
             gap: 0.6vh;
@@ -253,7 +265,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 1.2vh 1.5vw;
+            padding: 0.9vh 1.5vw;
             border-radius: 6px;
             font-size: 2.2vh;
             font-weight: 700;
@@ -263,7 +275,6 @@
         }
         .next-bar.red {
             background: linear-gradient(to right, #ff5a5a, #cc0000);
-            flex-direction: row-reverse;
         }
         .next-bar .icon { font-size: 1.1em; opacity: 0.8; }
         .next-label {
@@ -308,23 +319,23 @@
             animation: winnerPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), winnerPulse 1.6s ease-in-out infinite 0.6s;
         }
         .winner-name-line {
-            font-size: 14vh;
+            font-size: 19vh;
             font-weight: 900;
             letter-spacing: 3px;
             line-height: 1.1;
             text-transform: uppercase;
         }
         .winner-wins-line {
-            font-size: 11vh;
+            font-size: 15vh;
             font-weight: 900;
             letter-spacing: 4px;
             line-height: 1.1;
         }
         .winner-score {
-            font-size: 9.5vh;
+            font-size: 13vh;
             font-weight: 900;
             color: rgba(255,255,255,0.95);
-            margin-top: 2.5vh;
+            margin-top: 3.5vh;
             letter-spacing: 2px;
             font-variant-numeric: tabular-nums;
         }
@@ -379,27 +390,34 @@
 
     <!-- NAME ROW -->
     <div class="name-row">
-        <div class="flag" id="flagBlue">🏳️</div>
+        <img class="flag" id="flagBlue" src="/images/flags/ITALY.png" alt="">
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <div class="name-blue" id="nameBlue">BLUE</div>
             <div class="name-red" id="nameRed">RED</div>
         </div>
-        <div class="flag" id="flagRed">🏳️</div>
+        <img class="flag" id="flagRed" src="/images/flags/ITALY.png" alt="">
     </div>
 
     <!-- CENTRAL PANEL: blue stats | timer ring | red stats -->
     <div class="central-panel">
-        <div class="stat-block blue-w">
-            <span class="stat-label">W</span>
-            <span class="stat-value" id="wBlue">0</span>
-        </div>
-        <div class="round-indicator" id="roundIndicatorRow">R <span id="roundIndicator">1</span>/<span id="roundTotal">1</span></div>
-        <div class="stat-block red-w">
-            <span class="stat-value" id="wRed">0</span>
-            <span class="stat-label">W</span>
+        <div></div>
+        <div></div>
+        <div></div>
+
+        <div class="score-side-group blue-side-group">
+            <div class="side-stat-col">
+                <div class="stat-block blue-w">
+                    <span class="stat-label">W</span>
+                    <span class="stat-value" id="wBlue">0</span>
+                </div>
+                <div class="stat-block blue-p">
+                    <span class="stat-label">-P</span>
+                    <span class="stat-value" id="pBlue">0</span>
+                </div>
+            </div>
+            <div class="main-score blue-text blue-score" id="mainScoreBlue">0</div>
         </div>
 
-        <div class="main-score blue-text blue-score" id="mainScoreBlue">0</div>
         <div class="timer-ring-wrap">
             <svg class="timer-ring-svg" viewBox="0 0 120 120">
                 <circle class="timer-ring-track" cx="60" cy="60" r="48"></circle>
@@ -407,17 +425,24 @@
             </svg>
             <div class="timer-display" id="timerDisplay">02:00<span class="timer-ms" id="timerMs"></span></div>
         </div>
-        <div class="main-score red-text red-score" id="mainScoreRed">0</div>
 
-        <div class="stat-block blue-p">
-            <span class="stat-label">-P</span>
-            <span class="stat-value" id="pBlue">0</span>
+        <div class="score-side-group red-side-group">
+            <div class="main-score red-text red-score" id="mainScoreRed">0</div>
+            <div class="side-stat-col">
+                <div class="stat-block red-w">
+                    <span class="stat-value" id="wRed">0</span>
+                    <span class="stat-label">W</span>
+                </div>
+                <div class="stat-block red-p">
+                    <span class="stat-value" id="pRed">0</span>
+                    <span class="stat-label">-P</span>
+                </div>
+            </div>
         </div>
+
         <div></div>
-        <div class="stat-block red-p">
-            <span class="stat-value" id="pRed">0</span>
-            <span class="stat-label">-P</span>
-        </div>
+        <div class="round-indicator" id="roundIndicatorRow">R <span id="roundIndicator">1</span>/<span id="roundTotal">1</span></div>
+        <div></div>
     </div>
 
     <!-- REFEREES -->
@@ -453,12 +478,19 @@
 
 <script>
     // Country code -> flag emoji (basic ISO mapping, extend as needed)
-    function flagEmoji(countryName) {
-        const map = {
-            ITALY: "🇮🇹", FRANCE: "🇫🇷", SPAIN: "🇪🇸", GERMANY: "🇩🇪",
-            "UNITED KINGDOM": "🇬🇧", USA: "🇺🇸", "UNITED STATES": "🇺🇸"
-        };
-        return map[(countryName || "").toUpperCase()] || "🏳️";
+    // Sets a flag <img> src from a country name (e.g. "ITALY" -> /images/flags/ITALY.png).
+    function setFlagSrc(imgId, countryName) {
+        const img = document.getElementById(imgId);
+        if (!img) return;
+
+        if (!countryName) {
+            img.style.visibility = "hidden";
+            return;
+        }
+
+        img.style.visibility = "visible";
+        img.src = `/images/flags/${countryName.toUpperCase()}.png`;
+        img.onerror = () => { img.style.visibility = "hidden"; };
     }
 
     function formatTime(seconds) {
@@ -639,14 +671,27 @@
 
         if (payload.nameRed !== undefined) document.getElementById("nameRed").textContent = payload.nameRed;
         if (payload.nameBlue !== undefined) document.getElementById("nameBlue").textContent = payload.nameBlue;
-        if (payload.countryRed !== undefined) document.getElementById("flagRed").textContent = flagEmoji(payload.countryRed);
-        if (payload.countryBlue !== undefined) document.getElementById("flagBlue").textContent = flagEmoji(payload.countryBlue);
+        if (payload.countryRed !== undefined) setFlagSrc("flagRed", payload.countryRed);
+        if (payload.countryBlue !== undefined) setFlagSrc("flagBlue", payload.countryBlue);
 
-        if (payload.roundIndicator !== undefined) document.getElementById("roundIndicator").textContent = payload.roundIndicator;
-        if (payload.roundTotal !== undefined) document.getElementById("roundTotal").textContent = payload.roundTotal;
+        // Round label: shows BREAK, DOCTOR TIMER <COLOR>, or the normal R x/y
+        const roundRowEl = document.getElementById("roundIndicatorRow");
+        if (payload.activeDoctorColor) {
+            roundRowEl.textContent = `DC.${payload.activeDoctorColor.toUpperCase()}`;
+        } else if (payload.isBreakPhase) {
+            roundRowEl.textContent = "BREAK";
+        } else {
+            if (payload.roundIndicator !== undefined || payload.roundTotal !== undefined) {
+                roundRowEl.innerHTML = `R <span id="roundIndicator">${payload.roundIndicator ?? document.getElementById("roundIndicator")?.textContent ?? 1}</span>/<span id="roundTotal">${payload.roundTotal ?? document.getElementById("roundTotal")?.textContent ?? 1}</span>`;
+            }
+        }
 
         if (payload.remainingSeconds !== undefined) {
-            startSimulatedCountdown(payload.remainingSeconds, payload.totalSeconds, payload.isRunning);
+            if (payload.activeDoctorColor && payload.doctorTimerRemaining !== undefined && payload.doctorTimerRemaining !== null) {
+                startSimulatedCountdown(payload.doctorTimerRemaining, payload.doctorTimerTotal, payload.isRunning);
+            } else {
+                startSimulatedCountdown(payload.remainingSeconds, payload.totalSeconds, payload.isRunning);
+            }
         }
 
         if (payload.warnings) {
@@ -668,13 +713,22 @@
                 const blueBox = document.getElementById(`ref${i}blue`);
                 const isActive = !!ref?.active;
 
+                const redScore = parseFloat(ref?.score?.red) || 0;
+                const blueScore = parseFloat(ref?.score?.blue) || 0;
+                const margin = Math.abs(redScore - blueScore);
+
+                // Linear scale: margin 0 -> intensity 1 (base color), margin >= 8 -> intensity 1.6 (max)
+                const intensity = 1 + Math.min(margin, 8) / 8 * 0.6;
+
                 if (redBox) {
-                    redBox.textContent = ref?.score?.red ?? 0;
+                    redBox.textContent = redScore;
                     redBox.classList.toggle("red-active", isActive);
+                    redBox.style.setProperty("--intensity", (isActive && redScore > blueScore) ? intensity : 1);
                 }
                 if (blueBox) {
-                    blueBox.textContent = ref?.score?.blue ?? 0;
+                    blueBox.textContent = blueScore;
                     blueBox.classList.toggle("blue-active", isActive);
+                    blueBox.style.setProperty("--intensity", (isActive && blueScore > redScore) ? intensity : 1);
                 }
             });
         }
