@@ -469,7 +469,9 @@ app.get("/api/flags", (req, res) => {
     }
 });
 
+// Starts a new logging session (call this once, e.g. right after /api/login/admin succeeds). Returns the generated session id.
 app.post("/api/log/start", (req, res) => {
+    
     try {
         const { ring } = req.body;
  
@@ -481,15 +483,18 @@ app.post("/api/log/start", (req, res) => {
         appendLogEntry({ event: "session_open", sessionId: currentSessionId, ring });
  
         res.json({ ok: true, sessionId: currentSessionId, fileName });
+    
     } catch (err) {
+        
         console.error("Failed to start log session:", err);
+        
         res.status(500).json({ ok: false, error: "Failed to start log session" });
     }
 });
 
-// Appends a generic event to the current session log.
-// Body: { event: "referee_score", ...anyOtherFields }
+// Appends a generic event to the current session log. Body: { event: "referee_score", ...anyOtherFields }
 app.post("/api/log/event", (req, res) => {
+    
     try {
         if (!currentLogFilePath) {
             return res.status(400).json({ ok: false, error: "No active logging session — call /api/log/start first" });
@@ -500,14 +505,18 @@ app.post("/api/log/event", (req, res) => {
  
         appendLogEntry(req.body);
         res.json({ ok: true });
+    
     } catch (err) {
+        
         console.error("Failed to write log event:", err);
+        
         res.status(500).json({ ok: false, error: "Failed to write log event" });
     }
 });
 
 // Lists all session log files available on this machine (most recent first).
 app.get("/api/log/list", (req, res) => {
+    
     try {
         const files = fs.readdirSync(LOGS_DIR)
             .filter(f => f.endsWith(".jsonl"))
@@ -518,23 +527,29 @@ app.get("/api/log/list", (req, res) => {
             .sort((a, b) => new Date(b.mtime) - new Date(a.mtime));
  
         res.json({ ok: true, files });
+    
     } catch (err) {
+        
         console.error("Failed to list logs:", err);
+        
         res.status(500).json({ ok: false, error: "Failed to list logs" });
     }
 });
 
 // Downloads a specific session log file by name.
 app.get("/api/log/download/:fileName", (req, res) => {
+    
     const fileName = req.params.fileName;
  
     // Basic safety: only allow file names matching our own generated pattern.
     if (!/^RING_[\w-]+_[\w-]+\.jsonl$/.test(fileName)) {
+        
         return res.status(400).json({ ok: false, error: "Invalid file name" });
     }
  
     const filePath = path.join(LOGS_DIR, fileName);
     if (!fs.existsSync(filePath)) {
+        
         return res.status(404).json({ ok: false, error: "Log file not found" });
     }
  
