@@ -1600,6 +1600,19 @@
     function confirmWinner(color) {
         closeWinnerModal();
         showToast(`${color.toUpperCase()} confirmed as the winner`);
+
+        if (window.displayBridge) {
+            const winnerName = color === "red"
+                ? document.getElementById("nameLeft")?.textContent
+                : document.getElementById("nameRight")?.textContent;
+
+            const scoreRed = parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0;
+            const scoreBlue = parseInt(document.getElementById("mainScoreRight")?.textContent) || 0;
+
+            window.displayBridge.update({
+                announceWinner: { color: color, name: winnerName, scoreRed: scoreRed, scoreBlue: scoreBlue }
+            });
+        }
         // Server notification intentionally not implemented yet — UI-only for now.
     }
 
@@ -1939,7 +1952,11 @@
         try {
             for (let i = 1; i <= refereeCount; i++) {
                 const ref = refereeState[i];
-                referees.push(ref && ref.connected && ref.enabled ? { score: ref.score } : { score: { red: 0, blue: 0 } });
+                referees.push(
+                    ref && ref.connected && ref.enabled
+                        ? { score: ref.score, active: true }
+                        : { score: { red: 0, blue: 0 }, active: false }
+                );
             }
         } catch (err) {
             // refereeState/refereeCount not initialized yet (e.g. very first renderTimer() call) — skip referees this time.
@@ -1958,6 +1975,7 @@
             roundTotal: document.getElementById("roundTotal")?.textContent,
 
             remainingSeconds: remainingSeconds,
+            totalSeconds: totalSeconds,
             isRunning: isRunning,
 
             score: {
