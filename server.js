@@ -4,6 +4,7 @@ import os from "os";
 import path from "path";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { initScores, getScores, updateScore, deleteScore } from "./scores.js";
 import { createMatch, updateMatchDetails, updateMatchState, getMatchState } from "./match.js";
@@ -31,6 +32,16 @@ let ring = null;
 let specialtyCode = null;
 let serverId = null;
 let jwtToken = null;
+
+const LOGS_DIR = path.join(__dirname, "logs");
+if (!fs.existsSync(LOGS_DIR)) {
+    fs.mkdirSync(LOGS_DIR, { recursive: true });
+}
+
+// One log file per "session" (= one open-app-to-close-app run), identified
+// by a random session id generated when the admin panel logs in.
+let currentSessionId = null;
+let currentLogFilePath = null;
 
 // admin stream
 app.get("/stream/admin", (req, res) => {
@@ -272,6 +283,82 @@ app.post("/api/match/details", (req, res) => {
     res.json({ ok: true });
 });
 
+// Update match result
+app.post("/api/match/update", async (req, res) => {
+ 
+    try {
+        validate(res, event, ring);
+ 
+        const {
+            id_category,
+            pool,
+            id_match,
+            id_real_match,
+            id_winner,
+            id_loser,
+            left_score,
+            right_score,
+            tie
+        } = req.body;
+ 
+        if (!id_category || !pool || !id_match || !id_real_match) {
+            
+            return res.status(400).json({ok: false, error: "id_category, pool, id_match and id_real_match are required"});
+        }
+ 
+        const rawParams = {
+            id_event: event,
+            id_ring: ring,
+            id_category,
+            pool,
+            id_match,
+            id_real_match,
+            id_winner,
+            id_loser,
+            left_score,
+            right_score,
+            tie,
+            app: true
+        };
+
+        // Avoid sending literal "undefined"/"null" strings for missing values.
+        const filteredParams = Object.fromEntries(
+            Object.entries(rawParams).filter(([, v]) => v !== undefined && v !== null)
+        );
+
+        const bodyParams = new URLSearchParams(filteredParams);
+ 
+        const response = await fetch(
+            `${HANDLESPORT_BACKEND_URL}/scoring/updateMatch`,
+            {
+                method: "POST",
+                headers: {"Content-Type": "application/x-www-form-urlencoded", token: jwtToken },
+                body: bodyParams.toString()
+            }
+        );
+ 
+        const data = await response.json();
+ 
+        if (!response.ok) {
+            
+            return res.status(response.status).json(data);
+        }
+ 
+        if (data.result !== "OK") {
+            
+            return res.status(400).json({ ok: false, error: "Update in updating match result", result: data.result, raw: data });
+        }
+
+        return res.json({ ok: true, finish: data.finish });
+ 
+    } catch (err) {
+        
+        console.error(err);
+        
+        return res.status(500).json({ ok: false, error: "Failed to update match" });
+    }
+});
+
 // Get categories
 app.get("/api/categories", async (req, res) => {
 
@@ -359,6 +446,101 @@ app.get("/api/events", async (req, res) => {
     }
 });
 
+// Get flags
+app.get("/api/flags", (req, res) => {
+    
+    try {
+        
+        const flagsDir = path.join(__dirname, "public", "images", "flags");
+        const files = fs.readdirSync(flagsDir);
+ 
+        const countries = files
+            .filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f))
+            .map(f => f.replace(/\.(png|jpg|jpeg|webp)$/i, "").toUpperCase())
+            .sort();
+ 
+        res.json({ ok: true, countries });
+    
+    } catch (err) {
+        
+        console.error("Failed to list flags:", err);
+        
+        res.status(500).json({ ok: false, error: "Failed to list flags" });
+    }
+});
+
+app.post("/api/log/start", (req, res) => {
+    try {
+        const { ring } = req.body;
+ 
+        currentSessionId = crypto.randomUUID();
+        const fileName = `RING_${ring ?? "X"}_${currentSessionId}.jsonl`;
+        currentLogFilePath = path.join(LOGS_DIR, fileName);
+ 
+        fs.writeFileSync(currentLogFilePath, ""); // create empty file
+        appendLogEntry({ event: "session_open", sessionId: currentSessionId, ring });
+ 
+        res.json({ ok: true, sessionId: currentSessionId, fileName });
+    } catch (err) {
+        console.error("Failed to start log session:", err);
+        res.status(500).json({ ok: false, error: "Failed to start log session" });
+    }
+});
+
+// Appends a generic event to the current session log.
+// Body: { event: "referee_score", ...anyOtherFields }
+app.post("/api/log/event", (req, res) => {
+    try {
+        if (!currentLogFilePath) {
+            return res.status(400).json({ ok: false, error: "No active logging session — call /api/log/start first" });
+        }
+        if (!req.body || !req.body.event) {
+            return res.status(400).json({ ok: false, error: "Missing 'event' field" });
+        }
+ 
+        appendLogEntry(req.body);
+        res.json({ ok: true });
+    } catch (err) {
+        console.error("Failed to write log event:", err);
+        res.status(500).json({ ok: false, error: "Failed to write log event" });
+    }
+});
+
+// Lists all session log files available on this machine (most recent first).
+app.get("/api/log/list", (req, res) => {
+    try {
+        const files = fs.readdirSync(LOGS_DIR)
+            .filter(f => f.endsWith(".jsonl"))
+            .map(f => {
+                const stat = fs.statSync(path.join(LOGS_DIR, f));
+                return { fileName: f, size: stat.size, mtime: stat.mtime };
+            })
+            .sort((a, b) => new Date(b.mtime) - new Date(a.mtime));
+ 
+        res.json({ ok: true, files });
+    } catch (err) {
+        console.error("Failed to list logs:", err);
+        res.status(500).json({ ok: false, error: "Failed to list logs" });
+    }
+});
+
+// Downloads a specific session log file by name.
+app.get("/api/log/download/:fileName", (req, res) => {
+    const fileName = req.params.fileName;
+ 
+    // Basic safety: only allow file names matching our own generated pattern.
+    if (!/^RING_[\w-]+_[\w-]+\.jsonl$/.test(fileName)) {
+        return res.status(400).json({ ok: false, error: "Invalid file name" });
+    }
+ 
+    const filePath = path.join(LOGS_DIR, fileName);
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ ok: false, error: "Log file not found" });
+    }
+ 
+    res.download(filePath, fileName);
+});
+
 // Start server
 export async function startServer() {
     
@@ -423,6 +605,14 @@ function generateJwt(event, ring) {
     };
 
     return jwt.sign(payload, key, { algorithm: 'HS256' });
+}
+
+function appendLogEntry(entry) {
+    if (!currentLogFilePath) return; // silently no-op if no session started yet
+    const line = JSON.stringify({ ts: new Date().toISOString(), ...entry }) + "\n";
+    fs.appendFile(currentLogFilePath, line, (err) => {
+        if (err) console.error("Failed to write log entry:", err);
+    });
 }
 
 app.get("/tablet/:id", (req, res) => {

@@ -86,6 +86,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            cursor: pointer;
         }
         .load-btn {
             grid-column: 4;
@@ -129,6 +130,49 @@
             color: #4a9fd8;
             font-size: 18px;
             font-weight: 700;
+        }
+
+        .flag-picker-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            padding: 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        .flag-picker-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            transition: background 0.15s;
+        }
+        .flag-picker-item:hover { background: #252d3f; }
+        .flag-picker-item img {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #3a4560;
+        }
+        .flag-picker-item span {
+            font-size: 11px;
+            color: #c8ccd8;
+            font-weight: 700;
+            text-align: center;
+            letter-spacing: 0.5px;
+            word-break: break-word;
+            max-width: 100%;
+        }
+        .flag-picker-empty {
+            padding: 30px;
+            text-align: center;
+            color: #8a93a8;
+            font-size: 14px;
         }
         .category-modal-close {
             background: none;
@@ -229,6 +273,7 @@
             background: #cc3340;
         }
         .error-modal-footer button:active { filter: brightness(1.2); }
+        .error-modal-footer button.success { background: #2a9a5a; }
 
         /* ── INFO MODAL (round/match transitions) ── */
         .info-modal-overlay {
@@ -401,6 +446,26 @@
             white-space: nowrap;
         }
         .auth-copy-btn:active { filter: brightness(1.2); }
+
+        .name-edit-input {
+            width: 100%;
+            background: #252d3f;
+            border: 1px solid #3a4560;
+            color: #e8eaf0;
+            padding: 12px 14px;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: 700;
+            outline: none;
+            text-align: center;
+        }
+        .name-edit-input:focus { border-color: #1a6fa8; }
+        .name-edit-confirm {
+            width: 100%;
+            margin-top: 12px;
+            padding: 12px;
+            font-size: 14px;
+        }
 
         .topbar-fields {
             display: flex;
@@ -577,25 +642,18 @@
             gap: 6px;
             width: 70px;
         }
-        .country-select select {
-            background: #252d3f;
-            border: 1px solid #3a4560;
-            color: #e8eaf0;
-            padding: 8px 4px;
-            border-radius: 4px;
-            font-size: 13px;
-            font-weight: 700;
-            width: 100%;
-            outline: none;
-        }
         .flag {
-            width: 32px;
-            height: 32px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
             object-fit: cover;
             border: 1px solid #3a4560;
             display: block;
+            cursor: pointer;
+            transition: filter 0.1s, border-color 0.15s;
         }
+        .flag:hover { border-color: #1a6fa8; }
+        .flag:active { filter: brightness(1.2); }
 
         .name-bar {
             display: flex;
@@ -606,8 +664,11 @@
             font-size: 16px;
             letter-spacing: 1px;
             color: white;
+            cursor: pointer;
+            transition: filter 0.1s;
         }
-        .name-bar.red  { background: #cc0000; }
+        .name-bar:active { filter: brightness(1.2); }
+        .name-bar.red  { background: #cc0000; justify-content: flex-end; }
         .name-bar.blue { background: #1a6fa8; }
 
         .timer-bar {
@@ -994,12 +1055,13 @@
     <div class="topbar">
         <div class="ring-title">RING <span id="ringNumber">1</span> - <span class="event-name" id="eventName">Test Event</span>
             <button class="display-toggle-btn" onclick="toggleDisplayWindow()" id="displayToggleBtn">📺 OPEN DISPLAY</button>
+            <button class="display-toggle-btn" onclick="downloadSessionLog()">📄 DOWNLOAD LOG</button>
         </div>
 
         <div class="topbar-row2">
             <!-- CATEGORY BAR -->
             <div class="category-bar">
-                <div class="category-display" id="categoryDisplay">No category loaded</div>
+                <div class="category-display" id="categoryDisplay" onclick="editCategoryName()">No category loaded</div>
                 <button class="load-btn" onclick="openCategoryModal()">Load</button>
             </div>
 
@@ -1041,29 +1103,17 @@
     <!-- SCORE / NAME / TIMER ROW -->
     <div class="score-row">
         <div class="country-select" style="grid-column: 1;">
-            <select id="countryLeft">
-                <option>ITALY</option>
-                <option>FRANCE</option>
-                <option>SPAIN</option>
-                <option>GERMANY</option>
-            </select>
-            <img class="flag" id="flagLeft" src="/images/flags/ITALY.png" alt="">
+            <img class="flag" id="flagLeft" src="/images/flags/ITALY.png" alt="" onclick="openFlagPicker('flagLeft')">
         </div>
 
-        <div class="name-bar red" id="nameLeft" style="grid-column: 2 / 5;">RED</div>
+        <div class="name-bar red" id="nameLeft" style="grid-column: 2 / 5;" onclick="editParticipantName('nameLeft', 'RED')">RED</div>
 
         <div class="timer-bar" id="timerDisplay" style="grid-column: 5 / 7;" onclick="editRemainingTime()">02:00</div>
 
-        <div class="name-bar blue" id="nameRight" style="grid-column: 7 / 10;">BLUE</div>
+        <div class="name-bar blue" id="nameRight" style="grid-column: 7 / 10;" onclick="editParticipantName('nameRight', 'BLUE')">BLUE</div>
 
         <div class="country-select" style="grid-column: 10;">
-            <select id="countryRight">
-                <option>ITALY</option>
-                <option>FRANCE</option>
-                <option>SPAIN</option>
-                <option>GERMANY</option>
-            </select>
-            <img class="flag" id="flagRight" src="/images/flags/ITALY.png" alt="">
+            <img class="flag" id="flagRight" src="/images/flags/ITALY.png" alt="" onclick="openFlagPicker('flagRight')">
         </div>
     </div>
 
@@ -1219,11 +1269,38 @@
     </div>
 </div>
 
+<!-- NAME EDIT MODAL -->
+<div class="auth-modal-overlay hidden" id="nameEditModalOverlay" onclick="closeNameEditModalOnBackdrop(event)">
+    <div class="auth-modal">
+        <div class="auth-modal-header">
+            <h3 id="nameEditModalTitle">Edit name</h3>
+            <button class="auth-modal-close" onclick="closeNameEditModal()">✕</button>
+        </div>
+        <div class="auth-modal-body">
+            <input type="text" class="name-edit-input" id="nameEditInput" maxlength="40" onkeydown="nameEditOnKeydown(event)">
+            <button class="auth-copy-btn name-edit-confirm" onclick="confirmNameEdit()">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- FLAG PICKER MODAL -->
+<div class="category-modal-overlay hidden" id="flagPickerOverlay" onclick="closeFlagPickerOnBackdrop(event)">
+    <div class="category-modal">
+        <div class="category-modal-header">
+            <h3>Select country</h3>
+            <button class="category-modal-close" onclick="closeFlagPicker()">✕</button>
+        </div>
+        <div class="flag-picker-grid" id="flagPickerGrid">
+            <!-- flag options generated dynamically -->
+        </div>
+    </div>
+</div>
+
 <!-- INFO MODAL (round/match transitions) -->
 <div class="info-modal-overlay hidden" id="infoModalOverlay" onclick="closeInfoModalOnBackdrop(event)">
     <div class="info-modal">
         <div class="info-modal-header">
-            <span class="info-icon">ⓘ</span>
+            <span class="info-icon" id="infoModalIcon">ⓘ</span>
             <h3 id="infoModalTitle">Info</h3>
         </div>
         <div class="info-modal-body" id="infoModalMessage">
@@ -1329,6 +1406,8 @@
             localIp = data.localIp;
 
             document.getElementById("ringNumber").textContent = setupRingId;
+
+            await startLogSession(setupRingId);
 
             const eventSource = new EventSource(`http://${localIp}:8080/stream/admin`);
             console.log("Event stream initialized on", `http://${localIp}:8080/stream/admin`);
@@ -1461,6 +1540,8 @@
         activeDoctorColor = color;
         syncRoundButtonWithDoctorTimer();
 
+        logEvent("doctor_timer_start", { color, remaining: ds.remaining });
+
         setDoctorButtonText(color, doctorButtonLabel(color, "pause"));
         renderDoctorOverlay(color);
         pushDisplayUpdate();
@@ -1476,6 +1557,8 @@
         ds.running = false;
         activeDoctorColor = null;
         syncRoundButtonWithDoctorTimer();
+
+        logEvent("doctor_timer_stop", { color, remaining: ds.remaining });
 
         setDoctorButtonText(color, doctorButtonLabel(color, "resume"));
         restoreRoundDisplay();
@@ -1606,6 +1689,29 @@
         const currentRound = parseInt(document.getElementById("roundIndicator").textContent) || 1;
         const totalRounds = parseInt(document.getElementById("roundTotal").textContent) || 1;
 
+        const refereeBreakdown = [];
+        for (let i = 1; i <= refereeCount; i++) {
+            const ref = refereeState[i];
+            refereeBreakdown.push({ id: i, red: ref?.score?.red ?? 0, blue: ref?.score?.blue ?? 0 });
+        }
+
+        logEvent("round_end", {
+            round: currentRound,
+            referees: refereeBreakdown,
+            warnings: {
+                red: parseInt(document.getElementById("wScoreLeft")?.textContent) || 0,
+                blue: parseInt(document.getElementById("wScoreRight")?.textContent) || 0
+            },
+            minusPoints: {
+                red: parseInt(document.getElementById("pScoreLeft")?.textContent) || 0,
+                blue: parseInt(document.getElementById("pScoreRight")?.textContent) || 0
+            },
+            total: {
+                red: parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0,
+                blue: parseInt(document.getElementById("mainScoreRight")?.textContent) || 0
+            }
+        });
+
         if (currentRound >= totalRounds) {
             showWinnerModal();
             return;
@@ -1626,6 +1732,8 @@
 
         totalSeconds = parseInt(document.getElementById("breakDuration").value) || 60;
         remainingSeconds = totalSeconds;
+
+        logEvent("break_start", { duration: totalSeconds });
 
         stateDot.classList.remove("play");
         stateText.classList.remove("play");
@@ -1651,9 +1759,10 @@
     }
 
     // ── INFO MODAL (round/match transitions) ──
-    function showInfoModal(title, message, buttonText = null, onConfirm = null) {
+    function showInfoModal(title, message, buttonText = null, onConfirm = null, options = {}) {
         document.getElementById("infoModalTitle").textContent = title;
         document.getElementById("infoModalMessage").textContent = message;
+        document.getElementById("infoModalIcon").textContent = options.icon || "ⓘ";
 
         const footer = document.getElementById("infoModalFooter");
         const btn = document.getElementById("infoModalBtn");
@@ -1661,6 +1770,7 @@
         if (buttonText) {
             footer.classList.remove("hidden");
             btn.textContent = buttonText;
+            btn.classList.toggle("success", !!options.success);
             btn.onclick = () => {
                 closeInfoModal();
                 if (onConfirm) onConfirm();
@@ -1715,19 +1825,87 @@
         closeWinnerModal();
         showToast(`${color.toUpperCase()} confirmed as the winner`);
 
+        const winnerName = color === "red"
+            ? document.getElementById("nameLeft")?.textContent
+            : document.getElementById("nameRight")?.textContent;
+        const scoreRed = parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0;
+        const scoreBlue = parseInt(document.getElementById("mainScoreRight")?.textContent) || 0;
+
+        logEvent("winner_confirmed", { color, name: winnerName, score: { red: scoreRed, blue: scoreBlue } });
+
         if (window.displayBridge) {
-            const winnerName = color === "red"
-                ? document.getElementById("nameLeft")?.textContent
-                : document.getElementById("nameRight")?.textContent;
-
-            const scoreRed = parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0;
-            const scoreBlue = parseInt(document.getElementById("mainScoreRight")?.textContent) || 0;
-
             window.displayBridge.update({
                 announceWinner: { color: color, name: winnerName, scoreRed: scoreRed, scoreBlue: scoreBlue }
             });
         }
-        // Server notification intentionally not implemented yet — UI-only for now.
+
+        notifyMatchUpdate(color);
+    }
+
+    // Sends the match result to the backend via /api/match/update — only
+    // when a real category/match was loaded from the API (not a manual edit).
+    async function notifyMatchUpdate(color) {
+        const categoryId = document.getElementById("categoryDisplay")?.dataset.categoryId;
+        const category = categoryId ? categoriesById[categoryId] : null;
+        const match = currentMatches[currentMatchIndex];
+
+        if (!categoryId || !category || !match) {
+            console.log("Skipping backend match update — no category/match loaded from the API.");
+            return;
+        }
+
+        const scoreRed = parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0;
+        const scoreBlue = parseInt(document.getElementById("mainScoreRight")?.textContent) || 0;
+
+        const idWinner = color === "red" ? match.left_player_id : match.right_player_id;
+        const idLoser = color === "red" ? match.right_player_id : match.left_player_id;
+
+        try {
+            const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
+            const res = await fetch(`${base}/api/match/update`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id_category: categoryId,
+                    pool: category.pool,
+                    id_match: match.id_match,
+                    id_real_match: match.id_real_match,
+                    id_winner: idWinner,
+                    id_loser: idLoser,
+                    left_score: scoreRed,
+                    right_score: scoreBlue,
+                    tie: "N"
+                })
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+            console.log("Match update sent successfully:", data);
+            logEvent("match_update_sent", { result: data.result, finish: data.finish });
+
+            if (data.finish === "Y") {
+                const finishedCategoryName = document.getElementById("categoryDisplay").textContent;
+                logEvent("category_finished", { category: finishedCategoryName });
+                showInfoModal(
+                    "Category finished",
+                    `"${finishedCategoryName}" has been completed — all matches are done. Click below to reset and load a new category.`,
+                    "OK",
+                    resetCategoryForNextLoad,
+                    { icon: "✅", success: true }
+                );
+                return;
+            }
+
+            // The backend has now moved the IN_PROGRESS state forward —
+            // reload the match list so navigation reflects the new state.
+            await loadMatches(categoryId, category.pool, true);
+            showToast("Match result saved — moved to next match");
+
+        } catch (err) {
+            console.error("Failed to send match update to backend:", err);
+            showErrorModal("Could not update match", "Failed to send the match result to the backend. Please check the connection and try again.");
+        }
     }
 
     function closeWinnerModal() {
@@ -1953,6 +2131,8 @@
         document.getElementById("categoryDisplay").dataset.categoryId = categoryId;
         closeCategoryModal();
 
+        logEvent("category_loaded", { category: selectedOption.textContent, categoryId });
+
         if (!category || !category.pool) {
             showToast("Category loaded (pool info missing — could not load matches)");
             return;
@@ -1963,7 +2143,33 @@
 
     // Fetches matches for the loaded category/pool and populates RED/BLUE names
     // for the current match (left_player_des / right_player_des).
-    async function loadMatches(idCategory, pool) {
+    // Resets category/match state back to defaults after a category finishes,
+    // so the admin can load the next category from a clean slate.
+    function resetCategoryForNextLoad() {
+        document.getElementById("categoryDisplay").textContent = "No category loaded";
+        document.getElementById("categoryDisplay").removeAttribute("data-category-id");
+
+        document.getElementById("nameLeft").textContent = "RED";
+        document.getElementById("nameRight").textContent = "BLUE";
+        document.getElementById("matchNumber").value = "1";
+
+        setFlag("flagLeft", "ITALY");
+        setFlag("flagRight", "ITALY");
+
+        updateMatchStatusBadge(null);
+
+        currentMatches = [];
+        currentMatchIndex = 0;
+        updateMatchNavButtons();
+
+        document.getElementById("nextMatchRed").textContent = "RED";
+        document.getElementById("nextMatchBlue").textContent = "BLUE";
+
+        pushDisplayUpdate();
+        showToast("Ready to load a new category");
+    }
+
+    async function loadMatches(idCategory, pool, silent = false) {
         try {
             const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
             const res = await fetch(`${base}/api/matches?id_category=${idCategory}&pool=${pool}`);
@@ -1972,17 +2178,20 @@
 
             const matches = data.matches || [];
             if (!matches.length) {
-                showToast("Category loaded — no matches found");
+                if (!silent) showToast("Category loaded — no matches found");
                 return;
             }
 
             matches.sort((a, b) => parseInt(b.id_match) - parseInt(a.id_match));
 
             currentMatches = matches;
-            currentMatchIndex = 0;
+
+            const inProgressIndex = currentMatches.findIndex(m => m.state === "IN_PROGRESS");
+            currentMatchIndex = inProgressIndex !== -1 ? inProgressIndex : 0;
+
             applyMatch(currentMatches[currentMatchIndex]);
 
-            showToast(`Category loaded (${matches.length} matches)`);
+            if (!silent) showToast(`Category loaded (${matches.length} matches)`);
         } catch (err) {
             console.error("Failed to fetch matches:", err);
             showErrorModal("Could not load matches", "Failed to fetch the match list for this category. Please check the connection and try again.");
@@ -2002,22 +2211,29 @@
         updateNextMatchPreview();
         notifyMatchDetails(match);
         pushDisplayUpdate();
+
+        logEvent("match_changed", {
+            matchNumber: match.id_match,
+            red: match.left_player_des || "RED",
+            blue: match.right_player_des || "BLUE"
+        });
     }
 
     // Sets a flag <img> src from a country name (e.g. "ITALY" -> /images/flags/ITALY.png).
     // Falls back to hiding the image if the country is missing or the file doesn't exist.
-    let currentCountryRed = "";
-    let currentCountryBlue = "";
+    let currentCountryRed = "ITALY";
+    let currentCountryBlue = "ITALY";
 
     function setFlag(imgId, countryName) {
         const img = document.getElementById(imgId);
         if (!img) return;
 
-        if (imgId === "flagLeft") currentCountryRed = countryName || "";
-        if (imgId === "flagRight") currentCountryBlue = countryName || "";
+        if (imgId === "flagLeft") currentCountryRed = countryName || currentCountryRed;
+        if (imgId === "flagRight") currentCountryBlue = countryName || currentCountryBlue;
 
         if (!countryName) {
-            img.style.visibility = "hidden";
+            // No country provided by the match data — keep whatever flag is
+            // currently showing (defaults to ITALY) instead of hiding it.
             return;
         }
 
@@ -2176,6 +2392,48 @@
 
     // Notifies the server of the current score/warnings/minusPoints state
     // (the main top boxes), independent of the per-referee data.
+    // ── SESSION LOGGING ──
+    let logSessionId = null;
+
+    async function startLogSession(ring) {
+        try {
+            const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
+            const res = await fetch(`${base}/api/log/start`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ring })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+            logSessionId = data.sessionId;
+            console.log("Log session started:", data.fileName);
+        } catch (err) {
+            console.error("Failed to start log session:", err);
+        }
+    }
+
+    // Fire-and-forget: logs an event to the current session file. Never blocks
+    // or interrupts the UI flow even if the request fails.
+    function logEvent(event, fields = {}) {
+        const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
+        fetch(`${base}/api/log/event`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ event, ...fields })
+        }).catch(err => console.error(`Failed to log event "${event}":`, err));
+    }
+
+    function downloadSessionLog() {
+        if (!logSessionId) {
+            showToast("No active log session yet");
+            return;
+        }
+        const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
+        const fileName = `RING_${setupRingId}_${logSessionId}.jsonl`;
+        window.open(`${base}/api/log/download/${fileName}`, "_blank");
+    }
+
     async function notifyMatchScoreState() {
         pushDisplayUpdate();
         try {
@@ -2318,6 +2576,15 @@
             const newW = parseInt(wDisplay.textContent) + 1;
             wDisplay.textContent = newW;
 
+            const wRed = color === "red" ? newW : parseInt(document.getElementById("wScoreLeft")?.textContent) || 0;
+            const wBlue = color === "blue" ? newW : parseInt(document.getElementById("wScoreRight")?.textContent) || 0;
+            logEvent("warning", {
+                round: document.getElementById("roundIndicator")?.textContent,
+                remaining: formatTime(remainingSeconds),
+                red: wRed,
+                blue: wBlue
+            });
+
             if (newW % 3 === 0) {
                 subtractPointFromAllReferees(color); // already notifies score state internally
                 showToast(`3 warnings reached — 1 point removed from all referees (${color})`);
@@ -2442,6 +2709,15 @@
         document.getElementById(plusId).addEventListener("click", () => {
             const pDisplay = document.getElementById(pDisplayId);
             pDisplay.textContent = parseInt(pDisplay.textContent) + 1;
+
+            const pRed = color === "red" ? parseInt(pDisplay.textContent) : parseInt(document.getElementById("pScoreLeft")?.textContent) || 0;
+            const pBlue = color === "blue" ? parseInt(pDisplay.textContent) : parseInt(document.getElementById("pScoreRight")?.textContent) || 0;
+            logEvent("minus_points", {
+                round: document.getElementById("roundIndicator")?.textContent,
+                remaining: formatTime(remainingSeconds),
+                red: pRed,
+                blue: pBlue
+            });
 
             subtractPointFromAllReferees(color);
             showToast(`Penalty given — 1 point removed from all referees (${color})`);
@@ -2588,6 +2864,173 @@
         if (event.target.id === "authModalOverlay") closeAuthModal();
     }
 
+    // ── GENERIC TEXT EDIT MODAL (participant names, category) ──
+    let nameEditTargetId = null;
+    let nameEditOnConfirm = null;
+
+    function editParticipantName(targetId, defaultLabel) {
+        openNameEditModal(
+            targetId === "nameLeft" ? "Edit RED name" : "Edit BLUE name",
+            targetId,
+            defaultLabel
+        );
+    }
+
+    function editCategoryName() {
+        openNameEditModal("Edit category", "categoryDisplay", "No category loaded", () => {
+            // Manual edits don't have a real category id from the API list.
+            document.getElementById("categoryDisplay").removeAttribute("data-category-id");
+            notifyCategoryOnly();
+        });
+    }
+
+    async function notifyCategoryOnly() {
+        try {
+            const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
+            const res = await fetch(`${base}/api/match/details`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ category: document.getElementById("categoryDisplay").textContent })
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        } catch (err) {
+            console.error("Failed to notify category update:", err);
+        }
+    }
+
+    function openNameEditModal(title, targetId, defaultLabel, onConfirm = null) {
+        nameEditTargetId = targetId;
+        nameEditOnConfirm = onConfirm;
+
+        const current = document.getElementById(targetId)?.textContent || "";
+
+        document.getElementById("nameEditModalTitle").textContent = title;
+
+        const input = document.getElementById("nameEditInput");
+        input.value = current === defaultLabel ? "" : current;
+        input.placeholder = defaultLabel;
+
+        document.getElementById("nameEditModalOverlay").classList.remove("hidden");
+        setTimeout(() => { input.focus(); input.select(); }, 0);
+    }
+
+    function confirmNameEdit() {
+        if (!nameEditTargetId) return;
+
+        const input = document.getElementById("nameEditInput");
+        const value = input.value.trim();
+        const el = document.getElementById(nameEditTargetId);
+
+        el.textContent = value || input.placeholder;
+
+        if (nameEditTargetId === "nameLeft") {
+            logEvent("name_changed", { side: "red", name: el.textContent });
+        } else if (nameEditTargetId === "nameRight") {
+            logEvent("name_changed", { side: "blue", name: el.textContent });
+        } else if (nameEditTargetId === "categoryDisplay") {
+            logEvent("category_changed_manually", { category: el.textContent });
+        }
+
+        const callback = nameEditOnConfirm;
+        closeNameEditModal();
+        pushDisplayUpdate();
+        if (callback) callback();
+        showToast("Updated");
+    }
+
+    function closeNameEditModal() {
+        document.getElementById("nameEditModalOverlay").classList.add("hidden");
+        nameEditTargetId = null;
+        nameEditOnConfirm = null;
+    }
+
+    function closeNameEditModalOnBackdrop(event) {
+        if (event.target.id === "nameEditModalOverlay") closeNameEditModal();
+    }
+
+    function nameEditOnKeydown(event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            confirmNameEdit();
+        } else if (event.key === "Escape") {
+            event.preventDefault();
+            closeNameEditModal();
+        }
+    }
+
+    // ── FLAG PICKER ──
+    let flagPickerTargetId = null;
+    let cachedFlagList = null;
+
+    async function openFlagPicker(targetId) {
+        flagPickerTargetId = targetId;
+        document.getElementById("flagPickerOverlay").classList.remove("hidden");
+
+        const grid = document.getElementById("flagPickerGrid");
+        grid.innerHTML = `<div class="flag-picker-empty">Loading flags...</div>`;
+
+        try {
+            if (!cachedFlagList) {
+                const base = localIp ? `http://${localIp}:8080` : "http://localhost:8080";
+                const res = await fetch(`${base}/api/flags`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                cachedFlagList = data.countries || [];
+            }
+
+            if (!cachedFlagList.length) {
+                grid.innerHTML = `<div class="flag-picker-empty">No flags found in public/images/flags</div>`;
+                return;
+            }
+
+            grid.innerHTML = "";
+            cachedFlagList.forEach(country => {
+                const item = document.createElement("div");
+                item.className = "flag-picker-item";
+                item.onclick = () => selectFlag(country);
+                item.innerHTML = `
+                    <img src="/images/flags/${country}.png" alt="">
+                    <span>${country}</span>
+                `;
+                grid.appendChild(item);
+            });
+
+        } catch (err) {
+            console.error("Failed to load flag list:", err);
+            grid.innerHTML = `<div class="flag-picker-empty">Failed to load flags</div>`;
+        }
+    }
+
+    function selectFlag(country) {
+        const img = document.getElementById(flagPickerTargetId);
+        if (img) {
+            img.src = `/images/flags/${country}.png`;
+            img.onerror = () => { img.style.visibility = "hidden"; };
+            img.style.visibility = "visible";
+        }
+
+        if (flagPickerTargetId === "flagLeft") currentCountryRed = country;
+        if (flagPickerTargetId === "flagRight") currentCountryBlue = country;
+
+        logEvent("flag_changed", {
+            side: flagPickerTargetId === "flagLeft" ? "red" : "blue",
+            country
+        });
+
+        closeFlagPicker();
+        pushDisplayUpdate();
+        showToast(`Flag set to ${country}`);
+    }
+
+    function closeFlagPicker() {
+        document.getElementById("flagPickerOverlay").classList.add("hidden");
+        flagPickerTargetId = null;
+    }
+
+    function closeFlagPickerOnBackdrop(event) {
+        if (event.target.id === "flagPickerOverlay") closeFlagPicker();
+    }
+
     function copyAuthUrl() {
         const url = document.getElementById("authUrlInput").value;
         copyToClipboard(url, "Link copied to clipboard");
@@ -2609,6 +3052,7 @@
         }
 
         showToast(`Referee ${refereeId} connected`);
+        logEvent("referee_connected", { referee: refereeId });
     }
 
     // ── REFEREE SCORE UPDATE ──
@@ -2623,6 +3067,14 @@
         if (blueBox) blueBox.textContent = score.blue ?? 0;
 
         recalculateMainScore();
+
+        logEvent("referee_score", {
+            round: document.getElementById("roundIndicator")?.textContent,
+            remaining: formatTime(remainingSeconds),
+            referee: refereeId,
+            red: score.red ?? 0,
+            blue: score.blue ?? 0
+        });
     }
 
     // Main score = how many referees currently favor red vs blue (majority voting).
