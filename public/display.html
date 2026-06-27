@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0048)file:///C:/Users/miscj/Downloads/display_11.html -->
+<!-- saved from url=(0048)file:///C:/Users/miscj/Downloads/display_14.html -->
 <html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -134,10 +134,12 @@
         }
 
         .round-indicator {
-            font-size: 3.4vh;
+            font-size: 6vh;
             font-weight: 900;
             color: white;
             letter-spacing: 1px;
+            width: 46vh;
+            text-align: center;
         }
 
         .timer-ring-wrap {
@@ -165,7 +167,7 @@
             stroke-width: 6;
             stroke-linecap: round;
             stroke-dasharray: 301.6;
-            transition: stroke-dashoffset 1s linear, stroke 0.3s;
+            transition: stroke 0.3s;
         }
         .timer-ring-progress.warning { stroke: #e05a5a; }
         .timer-ring-progress.idle { stroke: #4a5578; }
@@ -179,6 +181,16 @@
             line-height: 1;
             font-variant-numeric: tabular-nums;
             color: white;
+            transition: font-size 0.2s ease-out;
+        }
+        .timer-display.compact {
+            font-size: 16vh;
+        }
+        .timer-ms {
+            font-size: 0.35em;
+            font-weight: 700;
+            opacity: 0.75;
+            margin-left: 0.1em;
         }
 
         /* ── REFEREE ROW ── */
@@ -309,7 +321,7 @@
                 <circle class="timer-ring-track" cx="60" cy="60" r="48"></circle>
                 <circle class="timer-ring-progress" id="timerRingProgress" cx="60" cy="60" r="48"></circle>
             </svg>
-            <div class="timer-display" id="timerDisplay">02:00</div>
+            <div class="timer-display" id="timerDisplay">02:00<span class="timer-ms" id="timerMs"></span></div>
         </div>
         <div class="main-score red-text red-score" id="mainScoreRed">0</div>
 
@@ -371,9 +383,72 @@
     }
 
     function formatTime(seconds) {
+        if (seconds < 60) {
+            return String(seconds);
+        }
         const m = Math.floor(seconds / 60).toString().padStart(2, "0");
         const s = (seconds % 60).toString().padStart(2, "0");
         return `${m}:${s}`;
+    }
+
+    // ── SIMULATED SMOOTH COUNTDOWN ──
+    // admin.html only ticks once per second. To show a smooth countdown with
+    // centiseconds during the last 10 seconds, we locally interpolate between
+    // server updates using requestAnimationFrame, re-syncing on every update.
+    let countdownFrame = null;
+    let countdownTargetSeconds = 0;
+    let countdownTotalSeconds = 120;
+    let countdownIsRunning = false;
+    let countdownAnchorTime = 0;   // performance.now() when this update arrived
+    let countdownAnchorValue = 0;  // remainingSeconds value at that moment
+
+    function startSimulatedCountdown(remainingSeconds, totalSeconds, isRunning) {
+        countdownTargetSeconds = remainingSeconds;
+        countdownTotalSeconds = totalSeconds;
+        countdownIsRunning = isRunning;
+        countdownAnchorTime = performance.now();
+        countdownAnchorValue = remainingSeconds;
+
+        if (countdownFrame) cancelAnimationFrame(countdownFrame);
+        countdownTick();
+    }
+
+    function countdownTick() {
+        let displaySeconds = countdownAnchorValue;
+
+        if (countdownIsRunning) {
+            const elapsed = (performance.now() - countdownAnchorTime) / 1000;
+            displaySeconds = Math.max(0, countdownAnchorValue - elapsed);
+        }
+
+        renderCountdown(displaySeconds);
+
+        if (countdownIsRunning && displaySeconds > 0) {
+            countdownFrame = requestAnimationFrame(countdownTick);
+        }
+    }
+
+    function renderCountdown(displaySeconds) {
+        const timerEl = document.getElementById("timerDisplay");
+        const msEl = document.getElementById("timerMs");
+        const wholeSeconds = Math.ceil(displaySeconds);
+
+        timerEl.classList.toggle("compact", wholeSeconds < 60);
+
+        if (displaySeconds < 10) {
+            // Show whole seconds (no leading zero) + centiseconds, e.g. "9" + ".87"
+            const whole = Math.floor(displaySeconds);
+            const centis = Math.floor((displaySeconds - whole) * 100);
+            timerEl.textContent = String(whole);
+            timerEl.appendChild(msEl);
+            msEl.textContent = "." + String(centis).padStart(2, "0");
+        } else {
+            msEl.textContent = "";
+            timerEl.textContent = formatTime(wholeSeconds);
+            timerEl.appendChild(msEl);
+        }
+
+        updateTimerRing(displaySeconds, countdownTotalSeconds, countdownIsRunning);
     }
 
     const RING_CIRCUMFERENCE = 301.6; // 2 * PI * 48, matches stroke-dasharray in CSS
@@ -447,8 +522,7 @@
         if (payload.roundTotal !== undefined) document.getElementById("roundTotal").textContent = payload.roundTotal;
 
         if (payload.remainingSeconds !== undefined) {
-            document.getElementById("timerDisplay").textContent = formatTime(payload.remainingSeconds);
-            updateTimerRing(payload.remainingSeconds, payload.totalSeconds, payload.isRunning);
+            startSimulatedCountdown(payload.remainingSeconds, payload.totalSeconds, payload.isRunning);
         }
 
         if (payload.warnings) {
