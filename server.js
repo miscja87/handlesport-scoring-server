@@ -2,15 +2,25 @@ import express from "express";
 import cors from "cors";
 import os from "os";
 import path from "path";
+import fs from "fs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import fs from "fs";
 import { fileURLToPath } from "url";
 import { initScores, getScores, updateScore, deleteScore } from "./scores.js";
 import { createMatch, updateMatchDetails, updateMatchState, getMatchState } from "./match.js";
 import { loginAsServer, createRefereeDoc, updateRefereeDoc, deleteRefereeDoc, auth } from "./firestore.js";
 import { ACTIONS, API_KEY, HANDLESPORT_BACKEND_URL } from "./constants.js";
 import { SPECIALTY_CONFIGURATION } from "./specialty.js";
+import {
+    initLogger,
+    appendLogEntry,
+    startLogSession,
+    hasActiveLogSession,
+    listLogFiles,
+    getLogFilePath,
+    isValidLogFileName,
+    logFileExists
+} from "./logger.js";
 
 // dir name
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -24,6 +34,8 @@ app.use(express.static(path.join(__dirname, "public")));
 const PORT = 8080;
 const LOCAL_IP = getLocalIP();
 
+initLogger(path.join(__dirname, "logs"));
+
 // Initial state
 let adminClient = null;
 let clients = [];
@@ -33,15 +45,7 @@ let specialtyCode = null;
 let serverId = null;
 let jwtToken = null;
 
-const LOGS_DIR = path.join(__dirname, "logs");
-if (!fs.existsSync(LOGS_DIR)) {
-    fs.mkdirSync(LOGS_DIR, { recursive: true });
-}
-
-// One log file per "session" (= one open-app-to-close-app run), identified
-// by a random session id generated when the admin panel logs in.
-let currentSessionId = null;
-let currentLogFilePath = null;
+// ── SSE STREAMS ──
 
 // admin stream
 app.get("/stream/admin", (req, res) => {
@@ -76,6 +80,8 @@ app.get("/stream/clients", (req, res) => {
         console.log(`Client SSE disconnected. Total connected clients: ${clients.length}`);
     });
 });
+
+// ── AUTH / LOGIN ──
 
 // Login as server (for Firestore access)
 app.post("/api/login/admin", async (req, res) => {
@@ -155,6 +161,8 @@ app.post("/api/login/referee", async (req, res) => {
         res.status(401).json({ ok: false, error: err.message });
     }
 });
+
+// ── REFEREE SCORE ──
 
 // Update score by referee
 app.post("/api/score/referee/:id", (req, res) => {
@@ -241,6 +249,8 @@ app.get("/api/tablet/url/:refereeId", (req, res) => {
 
     res.json({ ok: true, refereeId, url });
 });
+
+// ── MATCH ──
 
 // Get match status
 app.get("/api/match/status", (req, res) => {
@@ -359,6 +369,8 @@ app.post("/api/match/update", async (req, res) => {
     }
 });
 
+// ── HANDLESPORT BACKEND PROXIES ──
+
 // Get categories
 app.get("/api/categories", async (req, res) => {
 
@@ -446,6 +458,8 @@ app.get("/api/events", async (req, res) => {
     }
 });
 
+// ── MISC ──
+
 // Get flags
 app.get("/api/flags", (req, res) => {
     
@@ -469,20 +483,16 @@ app.get("/api/flags", (req, res) => {
     }
 });
 
+// ── SESSION LOGGING ──
+
 // Starts a new logging session (call this once, e.g. right after /api/login/admin succeeds). Returns the generated session id.
 app.post("/api/log/start", (req, res) => {
     
     try {
         const { ring } = req.body;
- 
-        currentSessionId = crypto.randomUUID();
-        const fileName = `RING_${ring ?? "X"}_${currentSessionId}.jsonl`;
-        currentLogFilePath = path.join(LOGS_DIR, fileName);
- 
-        fs.writeFileSync(currentLogFilePath, ""); // create empty file
-        appendLogEntry({ event: "session_open", sessionId: currentSessionId, ring });
- 
-        res.json({ ok: true, sessionId: currentSessionId, fileName });
+        const { sessionId, fileName } = startLogSession(crypto, ring);
+
+        res.json({ ok: true, sessionId, fileName });
     
     } catch (err) {
         
@@ -496,7 +506,7 @@ app.post("/api/log/start", (req, res) => {
 app.post("/api/log/event", (req, res) => {
     
     try {
-        if (!currentLogFilePath) {
+        if (!hasActiveLogSession()) {
             return res.status(400).json({ ok: false, error: "No active logging session — call /api/log/start first" });
         }
         if (!req.body || !req.body.event) {
@@ -518,13 +528,7 @@ app.post("/api/log/event", (req, res) => {
 app.get("/api/log/list", (req, res) => {
     
     try {
-        const files = fs.readdirSync(LOGS_DIR)
-            .filter(f => f.endsWith(".jsonl"))
-            .map(f => {
-                const stat = fs.statSync(path.join(LOGS_DIR, f));
-                return { fileName: f, size: stat.size, mtime: stat.mtime };
-            })
-            .sort((a, b) => new Date(b.mtime) - new Date(a.mtime));
+        const files = listLogFiles();
  
         res.json({ ok: true, files });
     
@@ -542,21 +546,39 @@ app.get("/api/log/download/:fileName", (req, res) => {
     const fileName = req.params.fileName;
  
     // Basic safety: only allow file names matching our own generated pattern.
-    if (!/^RING_[\w-]+_[\w-]+\.jsonl$/.test(fileName)) {
+    if (!isValidLogFileName(fileName)) {
         
         return res.status(400).json({ ok: false, error: "Invalid file name" });
     }
  
-    const filePath = path.join(LOGS_DIR, fileName);
-    if (!fs.existsSync(filePath)) {
+    if (!logFileExists(fileName)) {
         
         return res.status(404).json({ ok: false, error: "Log file not found" });
     }
  
-    res.download(filePath, fileName);
+    res.download(getLogFilePath(fileName), fileName);
 });
 
-// Start server
+// ── PAGES ──
+
+app.get("/tablet/:id", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "tablet.html"));
+});
+
+app.get("/admin", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "admin.html"));
+});
+
+app.get("/intro", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "intro.html"));
+});
+
+app.get("/display", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "display.html"));
+});
+
+// ── SERVER START ──
+
 export async function startServer() {
     
     app.listen(PORT, "0.0.0.0", () => {
@@ -564,6 +586,8 @@ export async function startServer() {
         console.log(`IP local: ${LOCAL_IP}`);        
     });
 }
+
+// ── HELPERS ──
 
 // Admin broadcast
 function broadcastAdmin(data) {
@@ -621,27 +645,3 @@ function generateJwt(event, ring) {
 
     return jwt.sign(payload, key, { algorithm: 'HS256' });
 }
-
-function appendLogEntry(entry) {
-    if (!currentLogFilePath) return; // silently no-op if no session started yet
-    const line = JSON.stringify({ ts: new Date().toISOString(), ...entry }) + "\n";
-    fs.appendFile(currentLogFilePath, line, (err) => {
-        if (err) console.error("Failed to write log entry:", err);
-    });
-}
-
-app.get("/tablet/:id", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "tablet.html"));
-});
-
-app.get("/admin", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "admin.html"));
-});
-
-app.get("/intro", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "intro.html"));
-});
-
-app.get("/display", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "display.html"));
-});
