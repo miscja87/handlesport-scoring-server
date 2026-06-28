@@ -489,6 +489,7 @@ app.get("/api/flags", (req, res) => {
 app.post("/api/log/start", (req, res) => {
     
     try {
+        
         const { ring } = req.body;
         const { sessionId, fileName } = startLogSession(crypto, ring);
 
@@ -506,14 +507,17 @@ app.post("/api/log/start", (req, res) => {
 app.post("/api/log/event", (req, res) => {
     
     try {
+        
         if (!hasActiveLogSession()) {
             return res.status(400).json({ ok: false, error: "No active logging session — call /api/log/start first" });
         }
+        
         if (!req.body || !req.body.event) {
             return res.status(400).json({ ok: false, error: "Missing 'event' field" });
         }
  
         appendLogEntry(req.body);
+        
         res.json({ ok: true });
     
     } catch (err) {
@@ -528,6 +532,7 @@ app.post("/api/log/event", (req, res) => {
 app.get("/api/log/list", (req, res) => {
     
     try {
+        
         const files = listLogFiles();
  
         res.json({ ok: true, files });
