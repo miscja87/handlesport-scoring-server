@@ -636,10 +636,8 @@ function getLocalIP() {
 }
 
 function generateJwt(event, ring) {
-    const key = crypto
-        .createHash('md5')
-        .update(API_KEY)
-        .digest('hex');
+    
+    const key = crypto.createHash('md5').update(API_KEY).digest('hex');
 
     const payload = {
         iat: Math.floor(Date.now() / 1000),
