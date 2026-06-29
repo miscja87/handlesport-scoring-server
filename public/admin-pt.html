@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel — Pattern</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="stylesheet" href="admin-shared.css">
+    <style>
+        /* ── PT-SPECIFIC STYLES ──
+           Currently still mostly mirrors SP (timer/round/W-P/winner modal
+           kept for now, to be replaced with PT's own match flow later).
+           Shared chrome (modals, referees, category bar, toast, flag/name-bar)
+           lives in admin-shared.css. */
+
+        /* PATTERN NUMBER dropdown — matches the look of .field input */
+        .field select {
+            background: #252d3f;
+            border: 1px solid #3a4560;
+            color: #e8eaf0;
+            padding: 8px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+        }
+        .field select:focus { border-color: #1a6fa8; }
+
+        /* ── PATTERN SELECT MODAL ── */
+        .pattern-select-body {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            padding: 20px;
+        }
+        .pattern-select-column {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .pattern-select-column.hidden { display: none; }
+        .pattern-select-column-title {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #8a93a8;
+            text-align: center;
+        }
+        .pattern-select-list {
+            background: #1a1f2e;
+            border: 1px solid #3a4560;
+            border-radius: 6px;
+            max-height: 360px;
+            overflow-y: auto;
+            user-select: none;
+        }
+        .pattern-select-item {
+            padding: 10px 14px;
+            font-size: 13px;
+            color: #c8ccd8;
+            cursor: pointer;
+            border-bottom: 1px solid #252d3f;
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .pattern-select-item:last-child { border-bottom: none; }
+        .pattern-select-item:hover { background: #252d3f; }
+        .pattern-select-item.selected {
+            background: #1a6fa8;
+            color: white;
+        }
+        .pattern-select-item .grade {
+            color: #6a7590;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+        .pattern-select-item.selected .grade { color: #c8ddf0; }
+
+        /* PT has 5 referees instead of SP's 4 — override the shared grid so
+           all 5 fit on a single row instead of wrapping. */
+        .referees-grid {
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+        }
+        .referee-btn {
+            font-size: 11px;
+            padding: 8px 4px;
+        }
+        .referee-btn.copy {
+            font-size: 10px;
+        }
+
+        /* ── PATTERN SCORE ROWS (PT-specific, injected via JS) ── */
+        .referee-pattern-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+        @media (max-width: 1100px) {
+            .referees-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        @media (max-width: 700px) {
+            .referees-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* ── WINNER MODAL extras (reuses .info-modal shell from shared CSS) ── */
+        .winner-modal-score {
+            text-align: center;
+            font-size: 36px;
+            font-weight: 900;
+            color: white;
+            margin: 4px 0 16px;
+        }
+        .winner-modal-score .red-text  { color: #e05a5a; }
+        .winner-modal-score .blue-text { color: #4a9fd8; }
+        .winner-btn-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            padding: 0 20px 20px;
+        }
+        .winner-btn {
+            border: none;
+            color: white;
+            font-weight: 900;
+            font-size: 15px;
+            letter-spacing: 1px;
+            padding: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #3a4560;
+            opacity: 0.6;
+            transition: opacity 0.15s, filter 0.1s;
+        }
+        .winner-btn:active { filter: brightness(1.2); }
+        .winner-btn.red { background: #cc0000; }
+        .winner-btn.blue { background: #1a6fa8; }
+        .winner-btn.suggested { opacity: 1; box-shadow: 0 0 0 2px white inset; }
+        .winner-cancel-row {
+            padding: 0 20px 20px;
+        }
+        .winner-cancel-btn {
+            width: 100%;
+            background: none;
+            border: 1px solid #3a4560;
+            color: #8a93a8;
+            font-size: 13px;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .winner-cancel-btn:active { background: #252d3f; }
+
+        /* ── SCORE / NAME / TIMER ROW ── */
+        .score-row {
+            display: grid;
+            grid-template-columns: 70px 110px 1fr 110px 110px 110px 110px 1fr 110px 70px;
+            gap: 14px;
+            align-items: stretch;
+            margin-bottom: 28px;
+        }
+
+        .timer-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #e0b400;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 900;
+            color: #1a1f2e;
+            letter-spacing: 0.5px;
+            text-align: center;
+            line-height: 1.2;
+            padding: 6px 10px;
+            cursor: default;
+            transition: filter 0.1s;
+        }
+        .timer-bar.running { background: #38a169; color: white; }
+        .timer-bar.warning { background: #cc0000; color: white; }
+
+        /* ── MAIN SCORE ── */
+        .main-score-row {
+            display: grid;
+            grid-template-columns: 70px 110px 1fr 110px 110px 110px 110px 1fr 110px 70px;
+            gap: 14px;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+        .main-score {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100px;
+            border-radius: 8px;
+            font-size: 64px;
+            font-weight: 900;
+            color: white;
+            grid-column: 1 / 5;
+            cursor: pointer;
+            transition: filter 0.1s;
+        }
+        .main-score:active { filter: brightness(1.15); }
+        .main-score.red  { background: #cc0000; }
+        .main-score.blue { background: #1a6fa8; grid-column: 7 / 11; }
+        .round-label {
+            text-align: center;
+            color: #a0aab8;
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            white-space: nowrap;
+            grid-column: 5 / 7;
+        }
+
+        /* ── SCORE GRID (W / -P rows) ── */
+        .score-grid-row {
+            display: grid;
+            grid-template-columns: 70px 110px 1fr 110px 110px 110px 110px 1fr 110px 70px;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+
+        .action-row {
+            display: grid;
+            grid-template-columns: 70px 110px 1fr 110px 110px 110px 110px 1fr 110px 70px;
+            gap: 14px;
+            margin-bottom: 28px;
+        }
+
+        .action-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: none;
+            color: white;
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: filter 0.1s;
+        }
+        .action-btn:active { filter: brightness(1.2); }
+        .action-btn.red  { background: #cc0000; }
+        .action-btn.blue { background: #1a6fa8; }
+        .action-btn.green { background: #2a7a2a; }
+        .action-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            filter: grayscale(0.5);
+        }
+        .action-btn .icon { font-size: 15px; }
+
+        /* ── STATE INDICATOR ── */
+        .state-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 30px;
+            font-size: 14px;
+            font-weight: 900;
+            letter-spacing: 1px;
+        }
+        .state-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            background: #e53e3e;
+        }
+        .state-dot.play { background: #38a169; }
+        .state-text.stop { color: #e53e3e; }
+        .state-text.play { color: #38a169; }
+
+        @media (max-width: 900px) {
+            .score-grid-row {
+                grid-template-columns: repeat(2, 1fr);
+                grid-template-areas:
+                    "labelL labelR"
+                    "adjL adjR"
+                    "scoreL scoreR"
+                    "adjL2 adjR2"
+                    "score2L score2R";
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="panel">
+
+
+    <!-- TOP BAR -->
+    <div class="topbar">
+        <div class="ring-title">RING <span id="ringNumber">1</span> - <span class="event-name" id="eventName">Test Event</span>
+            <button class="display-toggle-btn" onclick="SharedAdmin.toggleDisplayWindow()" id="displayToggleBtn">📺 OPEN DISPLAY</button>
+            <button class="display-toggle-btn" onclick="SharedAdmin.downloadSessionLog()">📄 DOWNLOAD LOG</button>
+        </div>
+
+        <div class="topbar-row2">
+            <!-- CATEGORY BAR -->
+            <div class="category-bar">
+                <div class="category-display" id="categoryDisplay" onclick="SharedAdmin.editCategoryName()">No category loaded</div>
+                <button class="load-btn" onclick="SharedAdmin.openCategoryModal()">Load</button>
+            </div>
+
+            <div class="topbar-fields">
+                <div class="field">
+                    <label>PATTERN NUMBER</label>
+                    <select id="roundCount" onchange="document.getElementById('roundTotal').textContent = this.value">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                    </select>
+                </div>
+
+                <button class="nav-btn" id="selectPatternBtn">SELECT PATTERN</button>
+                <button class="nav-btn" id="shufflePatternBtn">🔀 SHUFFLE</button>
+
+                <div class="match-nav">
+                    <button class="nav-btn" id="prevMatchBtn">◀◀ PREV.</button>
+                    <div class="field">
+                        <label>MATCH</label>
+                        <input type="text" id="matchNumber" value="1" readonly onclick="SharedAdmin.openKeypad('matchNumber', 'Match number', 1)">
+                    </div>
+                    <button class="nav-btn" id="nextMatchBtn">NEXT ▶▶</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MATCH STATUS BADGE -->
+    <div class="match-status-row">
+        <span class="match-status-badge" id="matchStatusBadge"></span>
+    </div>
+
+    <!-- SCORE / NAME / TIMER ROW -->
+    <div class="score-row">
+        <div class="country-select" style="grid-column: 1;">
+            <img class="flag" id="flagLeft" src="/images/flags/ITALY.png" alt="" onclick="SharedAdmin.openFlagPicker('flagLeft')">
+        </div>
+
+        <div class="name-bar red" id="nameLeft" style="grid-column: 2 / 5;" onclick="SharedAdmin.editParticipantName('nameLeft', 'RED')">RED</div>
+
+        <div class="timer-bar" id="patternNameDisplay" style="grid-column: 5 / 7;">OPTIONAL</div>
+
+        <div class="name-bar blue" id="nameRight" style="grid-column: 7 / 10;" onclick="SharedAdmin.editParticipantName('nameRight', 'BLUE')">BLUE</div>
+
+        <div class="country-select" style="grid-column: 10;">
+            <img class="flag" id="flagRight" src="/images/flags/ITALY.png" alt="" onclick="SharedAdmin.openFlagPicker('flagRight')">
+        </div>
+    </div>
+
+    <!-- MAIN SCORE -->
+    <div class="main-score-row">
+        <div class="main-score red" id="mainScoreLeft" onclick="showWinnerModal(false)">0</div>
+        <div class="round-label">PATTERN<br><span id="roundIndicator">1</span>/<span id="roundTotal">1</span></div>
+        <div class="main-score blue" id="mainScoreRight" onclick="showWinnerModal(false)">0</div>
+    </div>
+
+    <!-- CONTROLS ROW -->
+    <div class="score-grid-row">
+        <div style="grid-column: 5 / 7; display: flex; flex-direction: column; gap: 6px;">
+            <button class="action-btn green" id="resetAllBtn" style="font-size: 11px; padding: 8px 4px;">
+                <span class="icon">↻</span> RESET ALL
+            </button>
+            <button class="action-btn green" id="startStopBtn" style="font-size: 11px; padding: 8px 4px;">
+                <span class="icon" id="startStopIcon">▶</span> <span id="startStopLabel">START</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- STATE INDICATOR -->
+    <div class="state-row" style="margin-bottom: 16px;">
+        <span>STATE</span>
+        <span class="state-dot" id="stateDot"></span>
+        <span class="state-text stop" id="stateText">STOP</span>
+    </div>
+
+    <!-- REFEREES SECTION -->
+    <div class="referees-section">
+        <div class="referees-grid" id="refereesGrid">
+            <!-- 4 referee cards generated below -->
+        </div>
+    </div>
+
+    <!-- NEXT MATCH -->
+    <div class="next-match-section">
+        <div class="next-match-row">
+            <div class="next-bar red"><span class="icon">👤</span><span id="nextMatchRed">RED</span></div>
+            <div class="next-label">NEXT MATCH</div>
+            <div class="next-bar blue"><span id="nextMatchBlue">BLUE</span><span class="icon">👤</span></div>
+        </div>
+    </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- KEYPAD MODAL -->
+<div class="keypad-overlay hidden" id="keypadOverlay" onclick="SharedAdmin.closeKeypadOnBackdrop(event)">
+    <div class="keypad-modal">
+        <div class="keypad-title" id="keypadTitle">Value</div>
+        <input type="text" inputmode="numeric" class="keypad-display" id="keypadDisplay" value="0" oninput="SharedAdmin.keypadOnInput(this)" onkeydown="SharedAdmin.keypadOnKeydown(event)">
+        <div class="keypad-grid">
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('1')">1</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('2')">2</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('3')">3</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('4')">4</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('5')">5</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('6')">6</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('7')">7</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('8')">8</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('9')">9</button>
+            <button class="keypad-key" id="keypadSignBtn" onclick="SharedAdmin.keypadToggleSign()">±</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('0')">0</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadBackspace()">⌫</button>
+            <button class="keypad-key" style="grid-column: 1 / 4;" onclick="SharedAdmin.keypadClear()">C</button>
+        </div>
+        <div class="keypad-actions">
+            <button class="keypad-cancel" onclick="SharedAdmin.closeKeypad()">Cancel</button>
+            <button class="keypad-confirm" onclick="SharedAdmin.confirmKeypad()">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- CATEGORY MODAL -->
+<div class="category-modal-overlay hidden" id="categoryModalOverlay" onclick="SharedAdmin.closeCategoryModalOnBackdrop(event)">
+    <div class="category-modal">
+        <div class="category-modal-header">
+            <h3>Category</h3>
+            <button class="category-modal-close" onclick="SharedAdmin.closeCategoryModal()">✕</button>
+        </div>
+        <div class="category-modal-body">
+            <select class="category-select" id="categorySelect">
+            </select>
+            <button class="category-modal-btn refresh" onclick="SharedAdmin.refreshCategoryList()">
+                REFRESH LIST <span>↻</span>
+            </button>
+            <button class="category-modal-btn load" onclick="SharedAdmin.loadCategory()">
+                LOAD CATEGORY <span>✓</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ERROR MODAL -->
+<div class="error-modal-overlay hidden" id="errorModalOverlay" onclick="SharedAdmin.closeErrorModalOnBackdrop(event)">
+    <div class="error-modal">
+        <div class="error-modal-header">
+            <span class="error-icon">⚠</span>
+            <h3 id="errorModalTitle">Error</h3>
+        </div>
+        <div class="error-modal-body" id="errorModalMessage">
+            Something went wrong.
+        </div>
+        <div class="error-modal-footer">
+            <button onclick="SharedAdmin.closeErrorModal()">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- REFEREE AUTH MODAL -->
+<div class="auth-modal-overlay hidden" id="authModalOverlay" onclick="SharedAdmin.closeAuthModalOnBackdrop(event)">
+    <div class="auth-modal">
+        <div class="auth-modal-header">
+            <h3 id="authModalTitle">Referee link</h3>
+            <button class="auth-modal-close" onclick="SharedAdmin.closeAuthModal()">✕</button>
+        </div>
+        <div class="auth-modal-body">
+            <div class="auth-qr-box" id="authQrBox"></div>
+            <div class="auth-url-row">
+                <input type="text" class="auth-url-input" id="authUrlInput" readonly>
+                <button class="auth-copy-btn" onclick="SharedAdmin.copyAuthUrl()">Copy</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- NAME EDIT MODAL -->
+<div class="auth-modal-overlay hidden" id="nameEditModalOverlay" onclick="SharedAdmin.closeNameEditModalOnBackdrop(event)">
+    <div class="auth-modal">
+        <div class="auth-modal-header">
+            <h3 id="nameEditModalTitle">Edit name</h3>
+            <button class="auth-modal-close" onclick="SharedAdmin.closeNameEditModal()">✕</button>
+        </div>
+        <div class="auth-modal-body">
+            <input type="text" class="name-edit-input" id="nameEditInput" maxlength="40" onkeydown="SharedAdmin.nameEditOnKeydown(event)">
+            <button class="auth-copy-btn name-edit-confirm" onclick="SharedAdmin.confirmNameEdit()">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- PATTERN SELECT MODAL -->
+<div class="category-modal-overlay hidden" id="patternSelectOverlay" onclick="closePatternSelectOnBackdrop(event)">
+    <div class="category-modal" style="width: 720px;">
+        <div class="category-modal-header">
+            <h3>Select patterns</h3>
+            <button class="category-modal-close" onclick="closePatternSelectModal()">✕</button>
+        </div>
+        <div class="pattern-select-body">
+            <div class="pattern-select-column">
+                <div class="pattern-select-column-title">PATTERN 1</div>
+                <div class="pattern-select-list" id="patternList1"></div>
+            </div>
+            <div class="pattern-select-column" id="patternColumn2">
+                <div class="pattern-select-column-title">PATTERN 2</div>
+                <div class="pattern-select-list" id="patternList2"></div>
+            </div>
+        </div>
+        <div class="category-modal-body" style="padding-top: 0;">
+            <button class="category-modal-btn load" onclick="confirmPatternSelection()">
+                CONFIRM SELECTION <span>✓</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- FLAG PICKER MODAL -->
+<div class="category-modal-overlay hidden" id="flagPickerOverlay" onclick="SharedAdmin.closeFlagPickerOnBackdrop(event)">
+    <div class="category-modal">
+        <div class="category-modal-header">
+            <h3>Select country</h3>
+            <button class="category-modal-close" onclick="SharedAdmin.closeFlagPicker()">✕</button>
+        </div>
+        <div class="flag-picker-grid" id="flagPickerGrid">
+            <!-- flag options generated dynamically -->
+        </div>
+    </div>
+</div>
+
+<!-- INFO MODAL (round/match transitions) -->
+<div class="info-modal-overlay hidden" id="infoModalOverlay" onclick="SharedAdmin.closeInfoModalOnBackdrop(event)">
+    <div class="info-modal">
+        <div class="info-modal-header">
+            <span class="info-icon" id="infoModalIcon">ⓘ</span>
+            <h3 id="infoModalTitle">Info</h3>
+        </div>
+        <div class="info-modal-body" id="infoModalMessage">
+            Message
+        </div>
+        <div class="error-modal-footer hidden" id="infoModalFooter">
+            <button id="infoModalBtn" onclick="SharedAdmin.closeInfoModal()">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- WINNER MODAL -->
+<div class="info-modal-overlay hidden" id="winnerModalOverlay" onclick="closeWinnerModalOnBackdrop(event)">
+    <div class="info-modal">
+        <div class="info-modal-header">
+            <span class="info-icon">🏆</span>
+            <h3 id="winnerModalTitle">Match finished</h3>
+        </div>
+        <div class="info-modal-body" id="winnerModalMessage">
+            All rounds have been completed.
+        </div>
+        <div class="winner-modal-score" id="winnerModalScore"></div>
+        <div class="winner-btn-row">
+            <button class="winner-btn red" id="winnerBtnRed" onclick="confirmWinner('red')">RED WINS</button>
+            <button class="winner-btn blue" id="winnerBtnBlue" onclick="confirmWinner('blue')">BLUE WINS</button>
+        </div>
+        <div class="winner-cancel-row">
+            <button class="winner-cancel-btn" onclick="closeWinnerModal()">Cancel — review scores first</button>
+        </div>
+    </div>
+</div>
+
+<script src="admin-shared.js"></script>
+<script>
+    // ── STATE ──
+    const stateDot = document.getElementById("stateDot");
+    const stateText = document.getElementById("stateText");
+    const patternNameDisplay = document.getElementById("patternNameDisplay");
+    const startStopBtn = document.getElementById("startStopBtn");
+    const startStopLabel = document.getElementById("startStopLabel");
+    const startStopIcon = document.getElementById("startStopIcon");
+
+    let isRunning = false;
+
+    // Simple START/STOP toggle — no countdown, just flips the STATE indicator
+    // and notifies the server so the match status (play/stop) stays in sync.
+    function setState(running, skipAdvance = false) {
+        const wasRunning = isRunning;
+        isRunning = running;
+        if (running) {
+            stateDot.classList.add("play");
+            stateText.classList.remove("stop");
+            stateText.classList.add("play");
+            stateText.textContent = "PLAY";
+            startStopLabel.textContent = "STOP";
+            startStopIcon.textContent = "❙❙";
+        } else {
+            stateDot.classList.remove("play");
+            stateText.classList.remove("play");
+            stateText.classList.add("stop");
+            stateText.textContent = "STOP";
+            startStopLabel.textContent = "START";
+            startStopIcon.textContent = "▶";
+        }
+        updateMatchStatus(running ? "play" : "stop");
+        pushDisplayUpdatePT();
+
+        // Clicking STOP after a pattern was actually running moves on to the
+        // next pattern, or computes the winner if this was the last one.
+        // skipAdvance lets RESET ALL call setState(false) without triggering
+        // this (it already resets roundIndicator itself).
+        if (wasRunning && !running && !skipAdvance) {
+            onPatternFinished();
+        }
+    }
+
+    function onPatternFinished() {
+        const currentPattern = parseInt(document.getElementById("roundIndicator").textContent) || 1;
+        const totalPatterns = parseInt(document.getElementById("roundTotal").textContent) || 1;
+
+        if (currentPattern >= totalPatterns) {
+            showWinnerModal();
+            return;
+        }
+
+        SharedAdmin.showInfoModal(
+            `Pattern ${currentPattern} finished`,
+            `Click below to proceed to Pattern ${currentPattern + 1}.`,
+            `PROCEED TO PATTERN ${currentPattern + 1}`,
+            () => advanceToNextPattern(currentPattern)
+        );
+    }
+
+    function advanceToNextPattern(currentPattern) {
+        resetAllRefereeScoresTo10();
+
+        document.getElementById("roundIndicator").textContent = currentPattern + 1;
+        patternNameDisplay.textContent = "OPTIONAL";
+        pushDisplayUpdatePT();
+        SharedAdmin.showToast(`Moved to PATTERN ${currentPattern + 1}`);
+    }
+
+    async function updateMatchStatus(state) {
+        try {
+            const res = await fetch(`${SharedAdmin.apiBase()}/api/match/status`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ state })
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        } catch (err) {
+            console.error("Match status update error:", err);
+        }
+    }
+
+    startStopBtn.addEventListener("click", () => {
+        setState(!isRunning);
+    });
+
+    // Builds and sends the PT-specific display payload (shared base + W-P +
+    // pattern name/number). No timer/round/break/doctor fields since PT has
+    // no countdown. This is the single source of truth for pushing display
+    // updates — passed to SharedAdmin.configure() below, and also called
+    // directly anywhere this file needs to push a state update.
+    function pushDisplayUpdatePT() {
+        if (!window.displayBridge) return;
+        const base = SharedAdmin.buildBaseDisplayPayload();
+        if (!base) return;
+
+        window.displayBridge.update({
+            ...base,
+
+            roundIndicator: document.getElementById("roundIndicator")?.textContent,
+            roundTotal: document.getElementById("roundTotal")?.textContent,
+            patternName: patternNameDisplay?.textContent,
+            isRunning: isRunning,
+
+            score: {
+                red: parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0,
+                blue: parseInt(document.getElementById("mainScoreRight")?.textContent) || 0
+            }
+        });
+    }
+
+    // ── SHARED ADMIN CONFIGURATION ──
+    SharedAdmin.configure({
+        refereeStartScore: 10, // fallback only; server's login response is the real source
+
+        onInitComplete: () => {
+            injectPatternRows();
+        },
+
+        // Called at the end of SharedAdmin.applyMatch() — PT doesn't reset
+        // anything automatically on match change (admin controls that manually).
+        onMatchApplied: (match) => {
+            // no-op for now
+        },
+
+        pushDisplayUpdate: pushDisplayUpdatePT,
+
+        // Called after any referee score change — recalculates the PT main
+        // score (majority vote, higher wins) and notifies the server.
+        onRefereeScoreChanged: () => {
+            recalculateMainScorePT();
+        },
+
+        // Keeps the injected Pattern 1 row's connected/colored state in sync
+        // with the standard (live) row, which admin-shared.js colors itself.
+        onRefereeConnected: (refereeId) => {
+            markPatternRowsConnected(refereeId);
+        },
+
+        // Redirects each tablet score update into whichever pattern slot
+        // (1 or 2) is currently active for that referee.
+        onRefereeScoreUpdated: (refereeId, score) => {
+            onTabletScoreUpdate(refereeId, score);
+        },
+
+        // Extra fields merged into the "referee_score" log event.
+        extraLogContext: () => ({
+            pattern: document.getElementById("roundIndicator")?.textContent
+        })
+    });
+
+    // Majority vote using the COMBINED score (Pattern 1 + Pattern 2) per
+    // referee, instead of just the live score — can't reuse
+    // SharedAdmin.recalculateMainScore() since it only knows about the live
+    // refereeState.score, not our frozen Pattern 1 snapshots.
+    function recalculateMainScorePT() {
+        const refereeCount = SharedAdmin.getRefereeCount();
+        const refereeState = SharedAdmin.getRefereeState();
+
+        let redVotes = 0;
+        let blueVotes = 0;
+
+        for (let i = 1; i <= refereeCount; i++) {
+            const ref = refereeState[i];
+            if (!ref || !ref.connected || !ref.enabled) continue;
+
+            const combined = getCombinedRefereeScore(i);
+            if (combined.red > combined.blue) redVotes++;
+            else if (combined.blue > combined.red) blueVotes++;
+        }
+
+        document.getElementById("mainScoreLeft").textContent = redVotes;
+        document.getElementById("mainScoreRight").textContent = blueVotes;
+
+        notifyMatchScoreState();
+    }
+
+    // ── SELECT PATTERN / SHUFFLE (placeholders — logic added later) ──
+    document.getElementById("selectPatternBtn").addEventListener("click", openPatternSelectModal);
+
+    // ── PATTERN SELECT MODAL ──
+    let cachedPatternList = null;
+    let patternSelectedIndices = { 1: new Set(), 2: new Set() };
+    let patternLastClickedIndex = { 1: null, 2: null };
+
+    async function openPatternSelectModal() {
+        document.getElementById("patternSelectOverlay").classList.remove("hidden");
+
+        // Show/hide the FORM 2 column based on the current PATTERN NUMBER value.
+        const totalPatterns = parseInt(document.getElementById("roundCount").value) || 1;
+        document.getElementById("patternColumn2").classList.toggle("hidden", totalPatterns < 2);
+
+        const list1 = document.getElementById("patternList1");
+        const list2 = document.getElementById("patternList2");
+        list1.innerHTML = `<div class="pattern-select-item">Loading patterns...</div>`;
+        list2.innerHTML = "";
+
+        try {
+            if (!cachedPatternList) {
+                const res = await fetch(`${SharedAdmin.apiBase()}/api/patterns`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                cachedPatternList = await res.json();
+            }
+
+            renderPatternList(1);
+            if (totalPatterns >= 2) renderPatternList(2);
+
+        } catch (err) {
+            console.error("Failed to load pattern list:", err);
+            list1.innerHTML = `<div class="pattern-select-item">Failed to load patterns</div>`;
+        }
+    }
+
+    function renderPatternList(formNumber) {
+        const list = document.getElementById(`patternList${formNumber}`);
+        list.innerHTML = "";
+
+        cachedPatternList.forEach((pattern, index) => {
+            const item = document.createElement("div");
+            item.className = "pattern-select-item";
+            item.dataset.index = index;
+            item.innerHTML = `
+                <span>${pattern.name}</span>
+                <span class="grade">${pattern.des_grade}</span>
+            `;
+            item.addEventListener("click", (e) => onPatternItemClick(formNumber, index, e.shiftKey, e.ctrlKey || e.metaKey));
+            list.appendChild(item);
+        });
+
+        refreshPatternSelectionUI(formNumber);
+    }
+
+    // Click selects a single pattern; Shift+Click extends the selection from
+    // the last clicked item to this one (inclusive); Ctrl/Cmd+Click toggles
+    // just that one item on/off without touching the rest — same conventions
+    // as a desktop file manager.
+    function onPatternItemClick(formNumber, index, isShiftClick, isCtrlClick) {
+        const selected = patternSelectedIndices[formNumber];
+        const lastIndex = patternLastClickedIndex[formNumber];
+
+        if (isShiftClick && lastIndex !== null) {
+            const start = Math.min(lastIndex, index);
+            const end = Math.max(lastIndex, index);
+            selected.clear();
+            for (let i = start; i <= end; i++) selected.add(i);
+        } else if (isCtrlClick) {
+            if (selected.has(index)) {
+                selected.delete(index);
+            } else {
+                selected.add(index);
+            }
+            patternLastClickedIndex[formNumber] = index;
+        } else {
+            selected.clear();
+            selected.add(index);
+            patternLastClickedIndex[formNumber] = index;
+        }
+
+        refreshPatternSelectionUI(formNumber);
+    }
+
+    function refreshPatternSelectionUI(formNumber) {
+        const list = document.getElementById(`patternList${formNumber}`);
+        const selected = patternSelectedIndices[formNumber];
+
+        list.querySelectorAll(".pattern-select-item").forEach(item => {
+            const idx = parseInt(item.dataset.index);
+            item.classList.toggle("selected", selected.has(idx));
+        });
+    }
+
+    function closePatternSelectModal() {
+        document.getElementById("patternSelectOverlay").classList.add("hidden");
+    }
+
+    function closePatternSelectOnBackdrop(event) {
+        if (event.target.id === "patternSelectOverlay") closePatternSelectModal();
+    }
+
+    // Stores the selected pattern pools (one or two, indices into
+    // cachedPatternList) for SHUFFLE to draw from later.
+    let patternPools = { 1: [], 2: [] };
+
+    function confirmPatternSelection() {
+        const totalPatterns = parseInt(document.getElementById("roundCount").value) || 1;
+
+        if (patternSelectedIndices[1].size === 0) {
+            SharedAdmin.showToast("Select at least one pattern for PATTERN 1");
+            return;
+        }
+        if (totalPatterns >= 2 && patternSelectedIndices[2].size === 0) {
+            SharedAdmin.showToast("Select at least one pattern for PATTERN 2");
+            return;
+        }
+
+        patternPools[1] = [...patternSelectedIndices[1]].sort((a, b) => a - b).map(i => cachedPatternList[i]);
+        patternPools[2] = totalPatterns >= 2
+            ? [...patternSelectedIndices[2]].sort((a, b) => a - b).map(i => cachedPatternList[i])
+            : [];
+
+        closePatternSelectModal();
+        SharedAdmin.showToast(
+            `Pattern pool set: PATTERN 1 (${patternPools[1].length})` +
+            (totalPatterns >= 2 ? ` · PATTERN 2 (${patternPools[2].length})` : "")
+        );
+    }
+
+    document.getElementById("shufflePatternBtn").addEventListener("click", shufflePattern);
+
+    // ── PER-REFEREE PATTERN SCORES (PT-specific) ──
+    // Each referee has 2 fixed, independent score slots: Pattern 1 (top row)
+    // and Pattern 2 (bottom row). The tablet sends a plain {red, blue} score
+    // unaware of which pattern is active — we redirect that value into
+    // whichever slot matches the CURRENT pattern (roundIndicator), via the
+    // onRefereeScoreUpdated hook. Neither row is "live" or "frozen" — they're
+    // just two independent buckets, written to only while their pattern is
+    // the active one.
+    let patternScores = {}; // { [refereeId]: { 1: {red,blue}, 2: {red,blue} } }
+
+    function initPatternScores() {
+        const refereeCount = SharedAdmin.getRefereeCount();
+        patternScores = {};
+        for (let i = 1; i <= refereeCount; i++) {
+            patternScores[i] = { 1: { red: 10, blue: 10 }, 2: { red: 10, blue: 10 } };
+        }
+    }
+
+    // Injects two independent score rows (Pattern 1 on top, Pattern 2 below)
+    // into every referee card, replacing the single shared score row visually
+    // (the shared row's elements still exist in the DOM — admin-shared.js
+    // needs them to track refereeState — but we hide them).
+    function injectPatternRows() {
+        initPatternScores();
+
+        const refereeCount = SharedAdmin.getRefereeCount();
+        for (let i = 1; i <= refereeCount; i++) {
+            const liveRow = document.querySelector(`#refScoreRed${i}`)?.closest(".referee-score-row");
+            if (!liveRow || liveRow.dataset.patternRowInjected) continue;
+
+            liveRow.style.display = "none";
+
+            const row1 = document.createElement("div");
+            row1.className = "referee-pattern-row";
+            row1.innerHTML = `
+                <div class="referee-score-box red" id="refPattern1Red${i}">10</div>
+                <div class="referee-score-box blue" id="refPattern1Blue${i}">10</div>
+            `;
+            const row2 = document.createElement("div");
+            row2.className = "referee-pattern-row";
+            row2.innerHTML = `
+                <div class="referee-score-box red" id="refPattern2Red${i}">10</div>
+                <div class="referee-score-box blue" id="refPattern2Blue${i}">10</div>
+            `;
+            liveRow.parentNode.insertBefore(row1, liveRow);
+            liveRow.parentNode.insertBefore(row2, liveRow);
+            liveRow.dataset.patternRowInjected = "true";
+
+            // If this referee is already connected by the time rows are
+            // injected, copy that state over immediately.
+            const refereeState = SharedAdmin.getRefereeState();
+            if (refereeState[i]?.connected) {
+                markPatternRowsConnected(i);
+            }
+        }
+
+        refreshPatternRowsDisplay();
+    }
+
+    function markPatternRowsConnected(refereeId) {
+        [1, 2].forEach(p => {
+            document.getElementById(`refPattern${p}Red${refereeId}`)?.classList.add("connected");
+            document.getElementById(`refPattern${p}Blue${refereeId}`)?.classList.add("connected");
+        });
+    }
+
+    // Redraws both slot rows for every referee from patternScores. Called
+    // after any score change or pattern switch.
+    function refreshPatternRowsDisplay() {
+        const refereeCount = SharedAdmin.getRefereeCount();
+        for (let i = 1; i <= refereeCount; i++) {
+            const scores = patternScores[i];
+            if (!scores) continue;
+
+            const r1 = document.getElementById(`refPattern1Red${i}`);
+            const b1 = document.getElementById(`refPattern1Blue${i}`);
+            const r2 = document.getElementById(`refPattern2Red${i}`);
+            const b2 = document.getElementById(`refPattern2Blue${i}`);
+
+            if (r1) r1.textContent = scores[1].red;
+            if (b1) b1.textContent = scores[1].blue;
+            if (r2) r2.textContent = scores[2].red;
+            if (b2) b2.textContent = scores[2].blue;
+        }
+    }
+
+    // Called via the onRefereeScoreUpdated hook whenever a score arrives from
+    // the tablet. Writes it into whichever slot matches the pattern currently
+    // in progress — never touches the other slot.
+    function onTabletScoreUpdate(refereeId, score) {
+        const currentPatternNumber = parseInt(document.getElementById("roundIndicator")?.textContent) || 1;
+        if (!patternScores[refereeId]) return;
+
+        patternScores[refereeId][currentPatternNumber] = { red: score.red ?? 0, blue: score.blue ?? 0 };
+        refreshPatternRowsDisplay();
+        recalculateMainScorePT();
+    }
+
+    // Resets both pattern slots back to 10/10 for every referee (RESET ALL).
+    function resetPatternScores() {
+        initPatternScores();
+        refreshPatternRowsDisplay();
+    }
+
+    // Combined score per referee = Pattern 1 slot + Pattern 2 slot. Used for
+    // the main majority-vote calculation.
+    function getCombinedRefereeScore(refereeId) {
+        const scores = patternScores[refereeId];
+        if (!scores) return { red: 0, blue: 0 };
+        return {
+            red: scores[1].red + scores[2].red,
+            blue: scores[1].blue + scores[2].blue
+        };
+    }
+
+    // Draws a random pattern from the pool matching the pattern currently in
+    // progress (roundIndicator: 1 or 2), and shows it in the yellow box.
+    function shufflePattern() {
+        const currentPatternNumber = parseInt(document.getElementById("roundIndicator").textContent) || 1;
+        const pool = patternPools[currentPatternNumber];
+
+        if (!pool || pool.length === 0) {
+            SharedAdmin.showToast(`No patterns selected for PATTERN ${currentPatternNumber} — use SELECT PATTERN first`);
+            return;
+        }
+
+        const picked = pool[Math.floor(Math.random() * pool.length)];
+        patternNameDisplay.textContent = picked.name;
+
+        SharedAdmin.logEvent("pattern_shuffled", { pattern: currentPatternNumber, name: picked.name, id: picked.id });
+        pushDisplayUpdatePT();
+    }
+
+    // ── WINNER MODAL ──
+    function showWinnerModal(matchEndedNaturally = true) {
+        const redScore = parseInt(document.getElementById("mainScoreLeft").textContent) || 0;
+        const blueScore = parseInt(document.getElementById("mainScoreRight").textContent) || 0;
+
+        const scoreEl = document.getElementById("winnerModalScore");
+        const messageEl = document.getElementById("winnerModalMessage");
+        const redBtn = document.getElementById("winnerBtnRed");
+        const blueBtn = document.getElementById("winnerBtnBlue");
+
+        const intro = matchEndedNaturally
+            ? "All patterns have been completed."
+            : "Set the winner now (e.g. retirement, disqualification).";
+
+        scoreEl.innerHTML = `<span class="red-text">${redScore}</span> — <span class="blue-text">${blueScore}</span>`;
+        redBtn.classList.remove("suggested");
+        blueBtn.classList.remove("suggested");
+
+        if (redScore === blueScore) {
+            messageEl.textContent = `${intro} The result is currently a tie — please select the winner manually.`;
+        } else if (redScore > blueScore) {
+            messageEl.textContent = `${intro} RED is currently ahead — confirm the winner below.`;
+            redBtn.classList.add("suggested");
+        } else {
+            messageEl.textContent = `${intro} BLUE is currently ahead — confirm the winner below.`;
+            blueBtn.classList.add("suggested");
+        }
+
+        document.getElementById("winnerModalOverlay").classList.remove("hidden");
+    }
+
+    function confirmWinner(color) {
+        closeWinnerModal();
+        SharedAdmin.showToast(`${color.toUpperCase()} confirmed as the winner`);
+
+        const winnerName = color === "red"
+            ? document.getElementById("nameLeft")?.textContent
+            : document.getElementById("nameRight")?.textContent;
+        const scoreRed = parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0;
+        const scoreBlue = parseInt(document.getElementById("mainScoreRight")?.textContent) || 0;
+
+        SharedAdmin.logEvent("winner_confirmed", { color, name: winnerName, score: { red: scoreRed, blue: scoreBlue } });
+
+        if (window.displayBridge) {
+            window.displayBridge.update({
+                announceWinner: { color: color, name: winnerName, scoreRed: scoreRed, scoreBlue: scoreBlue }
+            });
+        }
+
+        notifyMatchUpdate(color);
+    }
+
+    // Sends the match result to the backend via /api/match/update — only
+    // when a real category/match was loaded from the API (not a manual edit).
+    async function notifyMatchUpdate(color) {
+        const categoryId = document.getElementById("categoryDisplay")?.dataset.categoryId;
+        const currentMatches = SharedAdmin.getCurrentMatches();
+        const currentMatchIndex = SharedAdmin.getCurrentMatchIndex();
+        const match = currentMatches[currentMatchIndex];
+
+        if (!categoryId || !match) {
+            console.log("Skipping backend match update — no category/match loaded from the API.");
+            return;
+        }
+
+        const scoreRed = parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0;
+        const scoreBlue = parseInt(document.getElementById("mainScoreRight")?.textContent) || 0;
+
+        const idWinner = color === "red" ? match.left_player_id : match.right_player_id;
+        const idLoser = color === "red" ? match.right_player_id : match.left_player_id;
+
+        try {
+            const res = await fetch(`${SharedAdmin.apiBase()}/api/match/update`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id_category: categoryId,
+                    pool: match.pool,
+                    id_match: match.id_match,
+                    id_real_match: match.id_real_match,
+                    id_winner: idWinner,
+                    id_loser: idLoser,
+                    left_score: scoreRed,
+                    right_score: scoreBlue,
+                    tie: "N"
+                })
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+            console.log("Match update sent successfully:", data);
+            SharedAdmin.logEvent("match_update_sent", { result: data.result, finish: data.finish });
+
+            if (data.finish === "Y") {
+                const finishedCategoryName = document.getElementById("categoryDisplay").textContent;
+                SharedAdmin.logEvent("category_finished", { category: finishedCategoryName });
+                SharedAdmin.showInfoModal(
+                    "Category finished",
+                    `"${finishedCategoryName}" has been completed — all matches are done. Click below to reset and load a new category.`,
+                    "OK",
+                    SharedAdmin.resetCategoryForNextLoad,
+                    { icon: "✅", success: true }
+                );
+                return;
+            }
+
+            await SharedAdmin.loadMatches(categoryId, match.pool, true);
+            SharedAdmin.showToast("Match result saved — moved to next match");
+
+        } catch (err) {
+            console.error("Failed to send match update to backend:", err);
+            SharedAdmin.showErrorModal("Could not update match", "Failed to send the match result to the backend. Please check the connection and try again.");
+        }
+    }
+
+    function closeWinnerModal() {
+        document.getElementById("winnerModalOverlay").classList.add("hidden");
+    }
+
+    function closeWinnerModalOnBackdrop(event) {
+        if (event.target.id === "winnerModalOverlay") closeWinnerModal();
+    }
+
+    // ── RESET ALL ──
+    document.getElementById("resetAllBtn").addEventListener("click", () => {
+        SharedAdmin.closeInfoModal();
+
+        document.getElementById("roundIndicator").textContent = "1";
+        patternNameDisplay.textContent = "OPTIONAL";
+
+        setState(false, true);
+
+        ["mainScoreLeft", "mainScoreRight"].forEach(id => {
+            document.getElementById(id).textContent = "0";
+        });
+
+        resetAllRefereeScoresTo10();
+        resetPatternScores();
+        recalculateMainScorePT();
+    });
+
+    // Resets every referee's live (current pattern) score back to 10/10 and
+    // notifies connected tablets. Used both by RESET ALL and when advancing
+    // to Pattern 2 (after freezing Pattern 1's score).
+    function resetAllRefereeScoresTo10() {
+        const refereeCount = SharedAdmin.getRefereeCount();
+        const refereeState = SharedAdmin.getRefereeState();
+        const ptStartScore = 10;
+        for (let i = 1; i <= refereeCount; i++) {
+            if (!refereeState[i]) continue;
+            refereeState[i].score = { red: ptStartScore, blue: ptStartScore };
+
+            const redBox = document.getElementById(`refScoreRed${i}`);
+            const blueBox = document.getElementById(`refScoreBlue${i}`);
+            if (redBox) redBox.textContent = String(ptStartScore);
+            if (blueBox) blueBox.textContent = String(ptStartScore);
+
+            if (refereeState[i].connected) {
+                SharedAdmin.notifyRefereeScore(i, refereeState[i].score);
+            }
+        }
+    }
+
+    // Notifies the server of the current overall score (majority vote), and
+    // pushes the same data to the public display. PT has no W/-P concept.
+    async function notifyMatchScoreState() {
+        pushDisplayUpdatePT();
+        try {
+            const body = {
+                score: {
+                    red: parseInt(document.getElementById("mainScoreLeft").textContent) || 0,
+                    blue: parseInt(document.getElementById("mainScoreRight").textContent) || 0
+                }
+            };
+
+            const res = await fetch(`${SharedAdmin.apiBase()}/api/match/details`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        } catch (err) {
+            console.error("Failed to notify match score state:", err);
+        }
+    }
+
+    window.addEventListener("load", SharedAdmin.init);
+</script>
+</body>
+</html>

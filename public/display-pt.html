@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scoreboard — Pattern</title>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="stylesheet" href="display-shared.css">
+    <style>
+        /* ── SP-SPECIFIC STYLES ──
+           Everything here is specific to the sparring central panel: main
+           score, W/-P, round indicator, timer ring/countdown.
+           Shared chrome (board, top row, name row, referee boxes,
+           next-match, winner overlay) lives in display-shared.css. */
+
+        /* ── CENTRAL PANEL: 3x3 grid, shared rows guarantee alignment ── */
+        .central-panel {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            grid-template-rows: auto auto auto;
+            align-items: center;
+            justify-items: center;
+            padding: 0.3vh 2.5vw;
+            gap: 0.3vh 5vw;
+        }
+
+        .score-side-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+        }
+        .blue-side-group { justify-self: stretch; }
+        .red-side-group { justify-self: stretch; }
+
+        .side-stat-col {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 30vh;
+        }
+
+        .stat-block {
+            display: flex;
+            align-items: baseline;
+            gap: 0.8vw;
+        }
+        .stat-label {
+            font-size: 6.5vh;
+            font-weight: 900;
+        }
+        .stat-value {
+            font-size: 6.5vh;
+            font-weight: 900;
+        }
+
+        .main-score {
+            font-size: 36vh;
+            font-weight: 900;
+            line-height: 1;
+            transition: text-shadow 0.4s ease-out;
+        }
+        .main-score.blue-text { color: #2aa8e0; }
+        .main-score.red-text { color: #ff4444; }
+
+        .main-score.leading {
+            text-shadow: 0 0 0.4em currentColor, 0 0 0.8em currentColor;
+        }
+
+        @keyframes scoreBump {
+            0%   { transform: scale(1);    filter: brightness(1); }
+            30%  { transform: scale(1.3); filter: brightness(1.8); }
+            100% { transform: scale(1);    filter: brightness(1); }
+        }
+        .main-score.bump {
+            display: inline-block;
+            transform-origin: center center;
+            animation: scoreBump 0.5s ease-out !important;
+        }
+
+        .round-indicator {
+            font-size: 6.5vh;
+            font-weight: 900;
+            color: white;
+            letter-spacing: 1px;
+            width: 40vh;
+            text-align: center;
+            margin-top: 0.3vh;
+        }
+
+        .timer-ring-wrap {
+            position: relative;
+            width: 40vh;
+            height: 40vh;
+            display: grid;
+            place-items: center;
+        }
+        .timer-ring-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+        .timer-ring-track {
+            fill: none;
+            stroke: #1a2030;
+            stroke-width: 6;
+        }
+        .timer-ring-progress {
+            fill: none;
+            stroke: #38e07a;
+            stroke-width: 6;
+            stroke-linecap: round;
+            stroke-dasharray: 301.6;
+            transition: stroke 0.3s;
+        }
+        .timer-ring-progress.warning { stroke: #e05a5a; }
+        .timer-ring-progress.idle { stroke: #4a5578; }
+
+        .timer-display {
+            position: relative;
+            grid-area: 1 / 1;
+            text-align: center;
+            font-size: 9vh;
+            font-weight: 900;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            color: white;
+            transition: font-size 0.2s ease-out;
+        }
+        .timer-display.compact {
+            font-size: 16vh;
+        }
+        .timer-ms {
+            font-size: 0.35em;
+            font-weight: 700;
+            opacity: 0.75;
+            margin-left: 0.1em;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="connecting" id="connecting">Waiting for admin panel...</div>
+
+<div class="board">
+
+<!-- WINNER ANNOUNCEMENT OVERLAY -->
+<div class="winner-overlay" id="winnerOverlay">
+    <div class="winner-content">
+        <div class="winner-headline" id="winnerHeadline">
+            <div class="winner-name-line" id="winnerNameLine">STEFANO</div>
+            <div class="winner-wins-line">WINS</div>
+        </div>
+        <div class="winner-score" id="winnerScore"></div>
+    </div>
+</div>
+
+
+    <!-- TOP ROW -->
+    <div class="top-row">
+        <div class="ring-label">RING <span id="ringNumber">1</span></div>
+        <div class="category-label" id="categoryLabel">Category</div>
+        <div class="match-label">Match <span id="matchNumber">1</span></div>
+    </div>
+
+    <!-- NAME ROW -->
+    <div class="name-row">
+        <img class="flag" id="flagBlue" src="/images/flags/ITALY.png" alt="">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="name-blue" id="nameBlue">BLUE</div>
+            <div class="name-red" id="nameRed">RED</div>
+        </div>
+        <img class="flag" id="flagRed" src="/images/flags/ITALY.png" alt="">
+    </div>
+
+    <!-- CENTRAL PANEL: blue stats | timer ring | red stats -->
+    <div class="central-panel">
+        <div></div>
+        <div></div>
+        <div></div>
+
+        <div class="score-side-group blue-side-group">
+            <div class="side-stat-col">
+                <div class="stat-block blue-w">
+                    <span class="stat-label">W</span>
+                    <span class="stat-value" id="wBlue">0</span>
+                </div>
+                <div class="stat-block blue-p">
+                    <span class="stat-label">-P</span>
+                    <span class="stat-value" id="pBlue">0</span>
+                </div>
+            </div>
+            <div class="main-score blue-text blue-score" id="mainScoreBlue">0</div>
+        </div>
+
+        <div class="timer-ring-wrap">
+            <svg class="timer-ring-svg" viewBox="0 0 120 120">
+                <circle class="timer-ring-track" cx="60" cy="60" r="48"></circle>
+                <circle class="timer-ring-progress" id="timerRingProgress" cx="60" cy="60" r="48"></circle>
+            </svg>
+            <div class="timer-display" id="timerDisplay">02:00<span class="timer-ms" id="timerMs"></span></div>
+        </div>
+
+        <div class="score-side-group red-side-group">
+            <div class="main-score red-text red-score" id="mainScoreRed">0</div>
+            <div class="side-stat-col">
+                <div class="stat-block red-w">
+                    <span class="stat-value" id="wRed">0</span>
+                    <span class="stat-label">W</span>
+                </div>
+                <div class="stat-block red-p">
+                    <span class="stat-value" id="pRed">0</span>
+                    <span class="stat-label">-P</span>
+                </div>
+            </div>
+        </div>
+
+        <div></div>
+        <div class="round-indicator" id="roundIndicatorRow">R <span id="roundIndicator">1</span>/<span id="roundTotal">1</span></div>
+        <div></div>
+    </div>
+
+    <!-- REFEREES -->
+    <div class="referee-section">
+        <div class="referee-labels" id="refereeLabels"></div>
+        <div class="referee-boxes" id="refereeBoxesP1"></div>
+        <div class="referee-boxes" id="refereeBoxesP2" style="margin-top: 0.5vh;"></div>
+    </div>
+
+    <!-- NEXT MATCHES -->
+    <div class="next-matches">
+        <div class="next-match-row">
+            <div class="next-bar blue"><span class="icon">👤</span><span id="next1Blue">BLUE</span></div>
+            <div class="next-label">NEXT MATCH</div>
+            <div class="next-bar red"><span id="next1Red">RED</span><span class="icon">👤</span></div>
+        </div>
+    </div>
+
+</div>
+
+<script src="display-shared.js"></script>
+<script>
+    // ── SIMULATED SMOOTH COUNTDOWN (SP-specific) ──
+    // admin-sp.html only ticks once per second. To show a smooth countdown
+    // with centiseconds during the last 10 seconds, we locally interpolate
+    // between server updates using requestAnimationFrame, re-syncing on
+    // every update.
+    let countdownFrame = null;
+    let countdownTargetSeconds = 0;
+    let countdownTotalSeconds = 120;
+    let countdownIsRunning = false;
+    let countdownAnchorTime = 0;   // performance.now() when this update arrived
+    let countdownAnchorValue = 0;  // remainingSeconds value at that moment
+
+    function startSimulatedCountdown(remainingSeconds, totalSeconds, isRunning) {
+        countdownTargetSeconds = remainingSeconds;
+        countdownTotalSeconds = totalSeconds;
+        countdownIsRunning = isRunning;
+        countdownAnchorTime = performance.now();
+        countdownAnchorValue = remainingSeconds;
+
+        if (countdownFrame) cancelAnimationFrame(countdownFrame);
+        countdownTick();
+    }
+
+    function countdownTick() {
+        let displaySeconds = countdownAnchorValue;
+
+        if (countdownIsRunning) {
+            const elapsed = (performance.now() - countdownAnchorTime) / 1000;
+            displaySeconds = Math.max(0, countdownAnchorValue - elapsed);
+        }
+
+        renderCountdown(displaySeconds);
+
+        if (countdownIsRunning && displaySeconds > 0) {
+            countdownFrame = requestAnimationFrame(countdownTick);
+        }
+    }
+
+    function renderCountdown(displaySeconds) {
+        const timerEl = document.getElementById("timerDisplay");
+        const msEl = document.getElementById("timerMs");
+        const wholeSeconds = Math.ceil(displaySeconds);
+
+        timerEl.classList.toggle("compact", wholeSeconds < 60);
+
+        if (displaySeconds < 10) {
+            // Show whole seconds (no leading zero) + centiseconds, e.g. "9" + ".87"
+            const whole = Math.floor(displaySeconds);
+            const centis = Math.floor((displaySeconds - whole) * 100);
+            timerEl.textContent = String(whole);
+            timerEl.appendChild(msEl);
+            msEl.textContent = "." + String(centis).padStart(2, "0");
+        } else {
+            msEl.textContent = "";
+            timerEl.textContent = SharedDisplay.formatTime(wholeSeconds);
+            timerEl.appendChild(msEl);
+        }
+
+        updateTimerRing(displaySeconds, countdownTotalSeconds, countdownIsRunning);
+    }
+
+    const RING_CIRCUMFERENCE = 301.6; // 2 * PI * 48, matches stroke-dasharray in CSS
+
+    function updateTimerRing(remaining, total, isRunning) {
+        const ring = document.getElementById("timerRingProgress");
+        ring.style.strokeDasharray = RING_CIRCUMFERENCE;
+
+        const safeTotal = (typeof total === "number" && total > 0) ? total : (parseInt(total) || 120);
+        const fraction = Math.max(0, Math.min(1, remaining / safeTotal));
+
+        ring.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - fraction));
+
+        ring.classList.remove("warning", "idle");
+        if (!isRunning) {
+            ring.classList.add("idle");
+        } else if (remaining <= 10) {
+            ring.classList.add("warning");
+        }
+    }
+
+    // ── MAIN SCORE: bump animation on change + glow on the leading color (SP-specific) ──
+    let lastScoreRed = null;
+    let lastScoreBlue = null;
+
+    function applyMainScore(red, blue) {
+        const redEl = document.getElementById("mainScoreRed");
+        const blueEl = document.getElementById("mainScoreBlue");
+
+        if (lastScoreRed !== null && red !== lastScoreRed) {
+            bumpScore(redEl);
+        }
+        if (lastScoreBlue !== null && blue !== lastScoreBlue) {
+            bumpScore(blueEl);
+        }
+
+        redEl.textContent = red;
+        blueEl.textContent = blue;
+
+        redEl.classList.toggle("leading", red > blue);
+        blueEl.classList.toggle("leading", blue > red);
+
+        lastScoreRed = red;
+        lastScoreBlue = blue;
+    }
+
+    function bumpScore(el) {
+        el.classList.remove("bump");
+        void el.offsetWidth;
+        el.classList.add("bump");
+        setTimeout(() => el.classList.remove("bump"), 500);
+    }
+
+    // ── PT REFEREE BOXES: 2 rows per referee (Pattern 1 / Pattern 2) ──
+    const PT_REFEREE_COUNT = 5;
+
+    function buildPtRefereeBoxes() {
+        const labels = document.getElementById("refereeLabels");
+        const rowP1 = document.getElementById("refereeBoxesP1");
+        const rowP2 = document.getElementById("refereeBoxesP2");
+
+        const colStyle = `repeat(${PT_REFEREE_COUNT * 2}, 1fr)`;
+        rowP1.style.gridTemplateColumns = colStyle;
+        rowP2.style.gridTemplateColumns = colStyle;
+        labels.style.gridTemplateColumns = `repeat(${PT_REFEREE_COUNT}, 1fr)`;
+
+        labels.innerHTML = "";
+        rowP1.innerHTML = "";
+        rowP2.innerHTML = "";
+
+        for (let i = 1; i <= PT_REFEREE_COUNT; i++) {
+            labels.insertAdjacentHTML("beforeend", `<span>REF. ${i}</span>`);
+            rowP1.insertAdjacentHTML("beforeend", `
+                <div class="referee-box" id="refP1_${i}blue">10</div>
+                <div class="referee-box" id="refP1_${i}red">10</div>
+            `);
+            rowP2.insertAdjacentHTML("beforeend", `
+                <div class="referee-box" id="refP2_${i}blue">10</div>
+                <div class="referee-box" id="refP2_${i}red">10</div>
+            `);
+        }
+    }
+
+    // Applies the referees array to whichever pattern row is currently
+    // active (payload.roundIndicator / roundTotal tell us 1 or 2), coloring
+    // the leading side per referee the same way SP does.
+    function applyPtRefereeBoxes(referees, patternNumber) {
+        const prefix = patternNumber === 2 ? "refP2_" : "refP1_";
+
+        referees.forEach((ref, idx) => {
+            const i = idx + 1;
+            const redBox = document.getElementById(`${prefix}${i}red`);
+            const blueBox = document.getElementById(`${prefix}${i}blue`);
+            const isActive = !!ref?.active;
+
+            const redScore = parseFloat(ref?.score?.red) || 0;
+            const blueScore = parseFloat(ref?.score?.blue) || 0;
+            const margin = Math.abs(redScore - blueScore);
+            const intensity = 1 + Math.min(margin, 8) / 8 * 0.6;
+
+            if (redBox) {
+                redBox.textContent = redScore;
+                redBox.classList.toggle("red-active", isActive);
+                redBox.style.setProperty("--intensity", (isActive && redScore > blueScore) ? intensity : 1);
+            }
+            if (blueBox) {
+                blueBox.textContent = blueScore;
+                blueBox.classList.toggle("blue-active", isActive);
+                blueBox.style.setProperty("--intensity", (isActive && blueScore > redScore) ? intensity : 1);
+            }
+        });
+    }
+
+    // ── APPLY INCOMING STATE (PT-specific fields on top of the shared ones) ──
+    function applyState(payload) {
+        // applyCommonFields would also try to color a single-row "referees"
+        // grid that doesn't exist in PT's markup — harmless (those IDs don't
+        // exist, so it's a no-op), but we handle referees ourselves below
+        // using the 2-row layout instead.
+        SharedDisplay.applyCommonFields(payload);
+
+        // Round label: shows BREAK, DOCTOR TIMER <COLOR>, or the normal R x/y
+        const roundRowEl = document.getElementById("roundIndicatorRow");
+        if (payload.activeDoctorColor) {
+            roundRowEl.textContent = `DC.${payload.activeDoctorColor.toUpperCase()}`;
+        } else if (payload.isBreakPhase) {
+            roundRowEl.textContent = "BREAK";
+        } else {
+            if (payload.roundIndicator !== undefined || payload.roundTotal !== undefined) {
+                roundRowEl.innerHTML = `R <span id="roundIndicator">${payload.roundIndicator ?? document.getElementById("roundIndicator")?.textContent ?? 1}</span>/<span id="roundTotal">${payload.roundTotal ?? document.getElementById("roundTotal")?.textContent ?? 1}</span>`;
+            }
+        }
+
+        if (payload.remainingSeconds !== undefined) {
+            if (payload.activeDoctorColor && payload.doctorTimerRemaining !== undefined && payload.doctorTimerRemaining !== null) {
+                startSimulatedCountdown(payload.doctorTimerRemaining, payload.doctorTimerTotal, payload.isRunning);
+            } else {
+                startSimulatedCountdown(payload.remainingSeconds, payload.totalSeconds, payload.isRunning);
+            }
+        }
+
+        if (payload.warnings) {
+            document.getElementById("wRed").textContent = payload.warnings.red ?? 0;
+            document.getElementById("wBlue").textContent = payload.warnings.blue ?? 0;
+        }
+        if (payload.minusPoints) {
+            document.getElementById("pRed").textContent = payload.minusPoints.red ?? 0;
+            document.getElementById("pBlue").textContent = payload.minusPoints.blue ?? 0;
+        }
+        if (payload.score) {
+            applyMainScore(payload.score.red ?? 0, payload.score.blue ?? 0);
+        }
+
+        if (payload.referees) {
+            const currentPatternNumber = parseInt(payload.roundIndicator) || 1;
+            applyPtRefereeBoxes(payload.referees, currentPatternNumber);
+        }
+    }
+
+    buildPtRefereeBoxes();
+
+    SharedDisplay.configure({
+        applyState: applyState
+    });
+    SharedDisplay.init();
+</script>
+
+</body>
+</html>

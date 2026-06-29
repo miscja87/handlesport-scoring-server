@@ -1,0 +1,240 @@
+/* ══════════════════════════════════════════════════════════════
+   DISPLAY SHARED STYLES
+   Shared between display-sp.html (Sparring) and display-pt.html (Pattern).
+   Contains: base reset/theme, board shell, top row, name row + flags,
+   referee box base style, next-match rows, connecting overlay, hidden
+   utility, and the winner announcement overlay (identical for both).
+   Does NOT contain: anything specific to the SP match layout (timer
+   ring, round indicator, W/-P, main score) — those stay in display-sp.html.
+   PT currently mirrors SP's central panel too (see display-pt.html's
+   own <style> block), but is expected to diverge later.
+   ══════════════════════════════════════════════════════════════ */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0a0d14;
+    font-family: 'Arial', sans-serif;
+    color: white;
+}
+
+.board {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    /* Split background: blue left, black center, red right */
+    background: linear-gradient(
+        to right,
+        #1a6fa8 0%,
+        #0a0d14 42%,
+        #0a0d14 58%,
+        #cc0000 100%
+    );
+}
+
+/* ── TOP ROW ── */
+.top-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    align-items: center;
+    padding: 0.5vh 2.5vw 0;
+    font-size: 2.8vh;
+    font-weight: 900;
+    letter-spacing: 1px;
+}
+.top-row .ring-label { text-align: left; }
+.top-row .category-label { text-align: center; font-weight: 400; }
+.top-row .match-label { text-align: right; }
+
+/* ── NAME ROW ── */
+.name-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 1.5vw;
+    padding: 0.4vh 2.5vw 0;
+}
+.flag {
+    width: 7vh;
+    height: 7vh;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid rgba(255,255,255,0.3);
+    flex-shrink: 0;
+    display: block;
+}
+.name-blue {
+    font-size: 4.6vh;
+    font-weight: 900;
+    letter-spacing: 1px;
+}
+.name-red {
+    font-size: 4.6vh;
+    font-weight: 900;
+    letter-spacing: 1px;
+    text-align: right;
+}
+
+/* ── REFEREE BOXES (base look — grid columns set per-file since the
+   referee count differs: 4 for SP, 5 for PT) ── */
+.referee-section {
+    padding: 0.5vh 2.5vw 0;
+}
+.referee-labels {
+    display: grid;
+    text-align: center;
+}
+.referee-labels span {
+    font-size: 1.6vh;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #c8ccd8;
+}
+.referee-boxes {
+    display: grid;
+    gap: 0.9vw;
+    margin-top: 0.6vh;
+}
+.referee-box {
+    background: #2a3142;
+    border: 1px solid #3a4560;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3.2vh;
+    font-weight: 900;
+    color: white;
+    height: 7.5vh;
+    transition: background 0.2s, border-color 0.2s, filter 0.4s;
+}
+.referee-box.red-active {
+    background: #8a1010;
+    border-color: #c04040;
+    filter: brightness(var(--intensity, 1)) saturate(var(--intensity, 1));
+}
+.referee-box.blue-active {
+    background: #0f4a70;
+    border-color: #2070a0;
+    filter: brightness(var(--intensity, 1)) saturate(var(--intensity, 1));
+}
+
+/* ── NEXT MATCH ROWS ── */
+.next-matches {
+    padding: 0.2vh 2.5vw 2.2vh;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6vh;
+}
+.next-match-row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 1.5vw;
+}
+.next-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.9vh 1.5vw;
+    border-radius: 6px;
+    font-size: 2.2vh;
+    font-weight: 700;
+}
+.next-bar.blue {
+    background: linear-gradient(to right, #1a6fa8, #2a9ad8);
+}
+.next-bar.red {
+    background: linear-gradient(to right, #ff5a5a, #cc0000);
+}
+.next-bar .icon { font-size: 1.1em; opacity: 0.8; }
+.next-label {
+    text-align: center;
+    font-size: 1.8vh;
+    font-weight: 700;
+    color: #c8ccd8;
+    letter-spacing: 0.5px;
+}
+
+.hidden { display: none !important; }
+
+/* ── WINNER ANNOUNCEMENT OVERLAY ── */
+.winner-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease, background 0.5s ease;
+}
+.winner-overlay.show {
+    opacity: 1;
+    transition: opacity 0.2s ease-in, background 0.2s ease-in;
+}
+.winner-overlay.show.fade-out {
+    opacity: 0;
+    transition: opacity 0.8s ease-out, background 0.8s ease-out;
+}
+.winner-overlay.red-bg   { background: radial-gradient(circle, #e8000a 0%, #7a0006 100%); }
+.winner-overlay.blue-bg  { background: radial-gradient(circle, #1a8fd8 0%, #0a3a5a 100%); }
+
+.winner-content {
+    text-align: center;
+}
+.winner-headline {
+    color: white;
+    text-shadow: 0 0 1em rgba(255,255,255,0.5), 0 8px 20px rgba(0,0,0,0.4);
+    animation: winnerPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), winnerPulse 1.6s ease-in-out infinite 0.6s;
+}
+.winner-name-line {
+    font-size: 19vh;
+    font-weight: 900;
+    letter-spacing: 3px;
+    line-height: 1.1;
+    text-transform: uppercase;
+}
+.winner-wins-line {
+    font-size: 15vh;
+    font-weight: 900;
+    letter-spacing: 4px;
+    line-height: 1.1;
+}
+.winner-score {
+    font-size: 13vh;
+    font-weight: 900;
+    color: rgba(255,255,255,0.95);
+    margin-top: 3.5vh;
+    letter-spacing: 2px;
+    font-variant-numeric: tabular-nums;
+}
+
+@keyframes winnerPop {
+    0%   { transform: scale(0.3); opacity: 0; }
+    60%  { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+@keyframes winnerPulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.04); }
+}
+
+.connecting {
+    position: fixed;
+    inset: 0;
+    background: #0a0d14;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #8a93a8;
+    z-index: 50;
+}

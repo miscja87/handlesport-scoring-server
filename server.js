@@ -114,7 +114,14 @@ app.post("/api/login/admin", async (req, res) => {
             jwtToken = generateJwt(event, ring);
         }
 
-        res.json({ ok: true, uid: serverId, token: jwtToken, localIp: LOCAL_IP });
+        res.json({
+            ok: true,
+            uid: serverId,
+            token: jwtToken,
+            referees : SPECIALTY_CONFIGURATION[specialtyCode].referees,
+            refereeStartScore: SPECIALTY_CONFIGURATION[specialtyCode].startScore,
+            localIp: LOCAL_IP
+        });
     
     } catch (err) {
         console.error("Login failed:", err);
@@ -483,6 +490,30 @@ app.get("/api/flags", (req, res) => {
     }
 });
 
+// Get patterns
+app.get("/api/patterns", async (req, res) => {
+    
+    try {
+
+        const response = await fetch(`${HANDLESPORT_BACKEND_URL}/scoring/getPatterns`);
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            
+            return res.status(response.status).json(data);
+        }
+
+        return res.json(data);
+
+    } catch (err) {
+        
+        console.error(err);
+
+        return res.status(500).json({ok: false, error: "Failed to fetch patterns"});
+    }
+});
+
 // ── SESSION LOGGING ──
 
 // Starts a new logging session (call this once, e.g. right after /api/login/admin succeeds). Returns the generated session id.
@@ -571,15 +602,17 @@ app.get("/tablet/:id", (req, res) => {
 });
 
 app.get("/admin", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "admin.html"));
-});
-
-app.get("/intro", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "intro.html"));
+    const specialty = req.query.specialty.toLowerCase();
+    const fileName = `admin-${specialty}.html`;
+    res.sendFile(path.join(__dirname, "public", fileName));
 });
 
 app.get("/display", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "display.html"));
+});
+
+app.get("/intro", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "intro.html"));
 });
 
 // ── SERVER START ──

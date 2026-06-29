@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel — Sparring</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="stylesheet" href="admin-shared.css">
+    <style>
+        /* ── SP-SPECIFIC STYLES ──
+           Everything here is specific to the sparring match layout: timer,
+           round label, main score, W/-P grid, action row, state indicator.
+           Shared chrome (modals, referees, category bar, toast, flag/name-bar)
+           lives in admin-shared.css. */
+
+        /* ── WINNER MODAL extras (reuses .info-modal shell from shared CSS) ── */
+        .winner-modal-score {
+            text-align: center;
+            font-size: 36px;
+            font-weight: 900;
+            color: white;
+            margin: 4px 0 16px;
+        }
+        .winner-modal-score .red-text  { color: #e05a5a; }
+        .winner-modal-score .blue-text { color: #4a9fd8; }
+        .winner-btn-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            padding: 0 20px 20px;
+        }
+        .winner-btn {
+            border: none;
+            color: white;
+            font-weight: 900;
+            font-size: 15px;
+            letter-spacing: 1px;
+            padding: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #3a4560;
+            opacity: 0.6;
+            transition: opacity 0.15s, filter 0.1s;
+        }
+        .winner-btn:active { filter: brightness(1.2); }
+        .winner-btn.red { background: #cc0000; }
+        .winner-btn.blue { background: #1a6fa8; }
+        .winner-btn.suggested { opacity: 1; box-shadow: 0 0 0 2px white inset; }
+        .winner-cancel-row {
+            padding: 0 20px 20px;
+        }
+        .winner-cancel-btn {
+            width: 100%;
+            background: none;
+            border: 1px solid #3a4560;
+            color: #8a93a8;
+            font-size: 13px;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .winner-cancel-btn:active { background: #252d3f; }
+
+        /* ── SCORE / NAME / TIMER ROW ── */
+        .score-row {
+            display: grid;
+            grid-template-columns: 70px 110px 1fr 110px 110px 110px 110px 1fr 110px 70px;
+            gap: 14px;
+            align-items: stretch;
+            margin-bottom: 28px;
+        }
+
+        .timer-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #e0b400;
+            border-radius: 6px;
+            font-size: 32px;
+            font-weight: 900;
+            color: #1a1f2e;
+            letter-spacing: 2px;
+            font-variant-numeric: tabular-nums;
+            cursor: pointer;
+            transition: filter 0.1s;
+        }
+        .timer-bar.running { background: #38a169; color: white; }
+        .timer-bar.warning { background: #cc0000; color: white; }
+
+        /* ── MAIN SCORE ── */
+        .main-score-row {
+            display: grid;
+            grid-template-columns: 70px 110px 1fr 110px 110px 110px 110px 1fr 110px 70px;
+            gap: 14px;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+        .main-score {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100px;
+            border-radius: 8px;
+            font-size: 64px;
+            font-weight: 900;
+            color: white;
+            grid-column: 1 / 5;
+            cursor: pointer;
+            transition: filter 0.1s;
+        }
+        .main-score:active { filter: brightness(1.15); }
+        .main-score.red  { background: #cc0000; }
+        .main-score.blue { background: #1a6fa8; grid-column: 7 / 11; }
+        .round-label {
+            text-align: center;
+            color: #a0aab8;
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            white-space: nowrap;
+            grid-column: 5 / 7;
+        }
+
+        /* ── SCORE GRID (W / -P rows) ── */
+        .score-grid-row {
+            display: grid;
+            grid-template-columns: 70px 110px 1fr 110px 110px 110px 110px 1fr 110px 70px;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+
+        .side-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 18px;
+            color: #6a7590;
+            width: 28px;
+        }
+        .side-label.red-text  { color: #e05a5a; }
+        .side-label.blue-text { color: #4a9fd8; }
+
+        .adj-btn {
+            border: none;
+            color: white;
+            font-weight: 900;
+            font-size: 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: filter 0.1s;
+            min-height: 48px;
+        }
+        .adj-btn:active { filter: brightness(1.25); }
+        .adj-btn.red  { background: #cc0000; }
+        .adj-btn.blue { background: #1a6fa8; }
+
+        .score-display {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            font-weight: 900;
+            border-radius: 6px;
+            color: white;
+            min-height: 48px;
+        }
+        .score-display.red  { background: #cc0000; }
+        .score-display.blue { background: #1a6fa8; }
+
+        .action-row {
+            display: grid;
+            grid-template-columns: 70px 110px 1fr 110px 110px 110px 110px 1fr 110px 70px;
+            gap: 14px;
+            margin-bottom: 28px;
+        }
+
+        .action-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: none;
+            color: white;
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: filter 0.1s;
+        }
+        .action-btn:active { filter: brightness(1.2); }
+        .action-btn.red  { background: #cc0000; }
+        .action-btn.blue { background: #1a6fa8; }
+        .action-btn.green { background: #2a7a2a; }
+        .action-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            filter: grayscale(0.5);
+        }
+        .action-btn .icon { font-size: 15px; }
+
+        /* ── STATE INDICATOR ── */
+        .state-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 30px;
+            font-size: 14px;
+            font-weight: 900;
+            letter-spacing: 1px;
+        }
+        .state-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            background: #e53e3e;
+        }
+        .state-dot.play { background: #38a169; }
+        .state-text.stop { color: #e53e3e; }
+        .state-text.play { color: #38a169; }
+
+        @media (max-width: 900px) {
+            .score-grid-row {
+                grid-template-columns: repeat(2, 1fr);
+                grid-template-areas:
+                    "labelL labelR"
+                    "adjL adjR"
+                    "scoreL scoreR"
+                    "adjL2 adjR2"
+                    "score2L score2R";
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="panel">
+
+    <audio id="gong_sound"><source src="gong.mp3"></audio>
+
+    <!-- TOP BAR -->
+    <div class="topbar">
+        <div class="ring-title">RING <span id="ringNumber">1</span> - <span class="event-name" id="eventName">Test Event</span>
+            <button class="display-toggle-btn" onclick="SharedAdmin.toggleDisplayWindow()" id="displayToggleBtn">📺 OPEN DISPLAY</button>
+            <button class="display-toggle-btn" onclick="SharedAdmin.downloadSessionLog()">📄 DOWNLOAD LOG</button>
+        </div>
+
+        <div class="topbar-row2">
+            <!-- CATEGORY BAR -->
+            <div class="category-bar">
+                <div class="category-display" id="categoryDisplay" onclick="SharedAdmin.editCategoryName()">No category loaded</div>
+                <button class="load-btn" onclick="SharedAdmin.openCategoryModal()">Load</button>
+            </div>
+
+            <div class="topbar-fields">
+                <div class="field">
+                    <label>ROUND NUMBER</label>
+                    <input type="text" id="roundCount" value="1" readonly onclick="SharedAdmin.openKeypad('roundCount', 'Round number', 1)">
+                </div>
+                <div class="field">
+                    <label>ROUND DURATION (s)</label>
+                    <input type="text" id="roundDuration" value="120" readonly onclick="SharedAdmin.openKeypad('roundDuration', 'Round duration (s)', 1)">
+                </div>
+                <div class="field">
+                    <label>BREAK (s)</label>
+                    <input type="text" id="breakDuration" value="60" readonly onclick="SharedAdmin.openKeypad('breakDuration', 'Break (s)', 0)">
+                </div>
+                <div class="field">
+                    <label>DOCTOR TIMER (s)</label>
+                    <input type="text" id="doctorDuration" value="180" readonly onclick="SharedAdmin.openKeypad('doctorDuration', 'Doctor timer (s)', 0)">
+                </div>
+
+                <div class="match-nav">
+                    <button class="nav-btn" id="prevMatchBtn">◀◀ PREV.</button>
+                    <div class="field">
+                        <label>MATCH</label>
+                        <input type="text" id="matchNumber" value="1" readonly onclick="SharedAdmin.openKeypad('matchNumber', 'Match number', 1)">
+                    </div>
+                    <button class="nav-btn" id="nextMatchBtn">NEXT ▶▶</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MATCH STATUS BADGE -->
+    <div class="match-status-row">
+        <span class="match-status-badge" id="matchStatusBadge"></span>
+    </div>
+
+    <!-- SCORE / NAME / TIMER ROW -->
+    <div class="score-row">
+        <div class="country-select" style="grid-column: 1;">
+            <img class="flag" id="flagLeft" src="/images/flags/ITALY.png" alt="" onclick="SharedAdmin.openFlagPicker('flagLeft')">
+        </div>
+
+        <div class="name-bar red" id="nameLeft" style="grid-column: 2 / 5;" onclick="SharedAdmin.editParticipantName('nameLeft', 'RED')">RED</div>
+
+        <div class="timer-bar" id="timerDisplay" style="grid-column: 5 / 7;" onclick="editRemainingTime()">02:00</div>
+
+        <div class="name-bar blue" id="nameRight" style="grid-column: 7 / 10;" onclick="SharedAdmin.editParticipantName('nameRight', 'BLUE')">BLUE</div>
+
+        <div class="country-select" style="grid-column: 10;">
+            <img class="flag" id="flagRight" src="/images/flags/ITALY.png" alt="" onclick="SharedAdmin.openFlagPicker('flagRight')">
+        </div>
+    </div>
+
+    <!-- MAIN SCORE -->
+    <div class="main-score-row">
+        <div class="main-score red" id="mainScoreLeft" onclick="showWinnerModal(false)">0</div>
+        <div class="round-label">ROUND<br><span id="roundIndicator">1</span>/<span id="roundTotal">1</span></div>
+        <div class="main-score blue" id="mainScoreRight" onclick="showWinnerModal(false)">0</div>
+    </div>
+
+    <!-- W ROW -->
+    <div class="score-grid-row">
+        <div class="side-label red-text" style="grid-column: 1;">W</div>
+        <button class="adj-btn red" id="wMinusLeft" style="grid-column: 2;">−</button>
+        <div class="score-display red" id="wScoreLeft" style="grid-column: 3;">0</div>
+        <button class="adj-btn red" id="wPlusLeft" style="grid-column: 4;">+ (Q)</button>
+        <button class="action-btn green" id="resetAllBtn" style="grid-column: 5 / 7; font-size: 11px; padding: 8px 4px;">
+            <span class="icon">↻</span> RESET ALL
+        </button>
+        <button class="adj-btn blue" id="wPlusRight" style="grid-column: 7;">+ (W)</button>
+        <div class="score-display blue" id="wScoreRight" style="grid-column: 8;">0</div>
+        <button class="adj-btn blue" id="wMinusRight" style="grid-column: 9;">−</button>
+        <div class="side-label blue-text" style="grid-column: 10;">W</div>
+    </div>
+
+    <!-- P ROW -->
+    <div class="score-grid-row">
+        <div class="side-label red-text" style="grid-column: 1;">−P</div>
+        <button class="adj-btn red" id="pMinusLeft" style="grid-column: 2;">−</button>
+        <div class="score-display red" id="pScoreLeft" style="grid-column: 3;">0</div>
+        <button class="adj-btn red" id="pPlusLeft" style="grid-column: 4;">+ (A)</button>
+        <button class="action-btn green" id="startStopBtn" style="grid-column: 5 / 7; font-size: 11px; padding: 8px 4px;">
+            <span class="icon" id="startStopIcon">▶</span> <span id="startStopLabel">START</span>
+        </button>
+        <button class="adj-btn blue" id="pPlusRight" style="grid-column: 7;">+ (S)</button>
+        <div class="score-display blue" id="pScoreRight" style="grid-column: 8;">0</div>
+        <button class="adj-btn blue" id="pMinusRight" style="grid-column: 9;">−</button>
+        <div class="side-label blue-text" style="grid-column: 10;">−P</div>
+    </div>
+
+    <!-- ACTION ROW: doctor timers + state indicator at same height -->
+    <div class="action-row" style="margin-bottom: 16px; align-items: center;">
+        <button class="action-btn red" id="doctorTimerLeftBtn" style="grid-column: 2 / 5;">
+            <span class="icon">👤</span> START DOCTOR TIMER RED
+        </button>
+        <div class="state-row" style="grid-column: 5 / 7; margin-bottom: 0;">
+            <span>STATE</span>
+            <span class="state-dot" id="stateDot"></span>
+            <span class="state-text stop" id="stateText">STOP</span>
+        </div>
+        <button class="action-btn blue" id="doctorTimerRightBtn" style="grid-column: 7 / 10;">
+            <span class="icon">👤</span> START DOCTOR TIMER BLUE
+        </button>
+    </div>
+
+    <!-- REFEREES SECTION -->
+    <div class="referees-section">
+        <div class="referees-grid" id="refereesGrid">
+            <!-- 4 referee cards generated below -->
+        </div>
+    </div>
+
+    <!-- NEXT MATCH -->
+    <div class="next-match-section">
+        <div class="next-match-row">
+            <div class="next-bar red"><span class="icon">👤</span><span id="nextMatchRed">RED</span></div>
+            <div class="next-label">NEXT MATCH</div>
+            <div class="next-bar blue"><span id="nextMatchBlue">BLUE</span><span class="icon">👤</span></div>
+        </div>
+    </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- KEYPAD MODAL -->
+<div class="keypad-overlay hidden" id="keypadOverlay" onclick="SharedAdmin.closeKeypadOnBackdrop(event)">
+    <div class="keypad-modal">
+        <div class="keypad-title" id="keypadTitle">Value</div>
+        <input type="text" inputmode="numeric" class="keypad-display" id="keypadDisplay" value="0" oninput="SharedAdmin.keypadOnInput(this)" onkeydown="SharedAdmin.keypadOnKeydown(event)">
+        <div class="keypad-grid">
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('1')">1</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('2')">2</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('3')">3</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('4')">4</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('5')">5</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('6')">6</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('7')">7</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('8')">8</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('9')">9</button>
+            <button class="keypad-key" id="keypadSignBtn" onclick="SharedAdmin.keypadToggleSign()">±</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadPress('0')">0</button>
+            <button class="keypad-key" onclick="SharedAdmin.keypadBackspace()">⌫</button>
+            <button class="keypad-key" style="grid-column: 1 / 4;" onclick="SharedAdmin.keypadClear()">C</button>
+        </div>
+        <div class="keypad-actions">
+            <button class="keypad-cancel" onclick="SharedAdmin.closeKeypad()">Cancel</button>
+            <button class="keypad-confirm" onclick="SharedAdmin.confirmKeypad()">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- CATEGORY MODAL -->
+<div class="category-modal-overlay hidden" id="categoryModalOverlay" onclick="SharedAdmin.closeCategoryModalOnBackdrop(event)">
+    <div class="category-modal">
+        <div class="category-modal-header">
+            <h3>Category</h3>
+            <button class="category-modal-close" onclick="SharedAdmin.closeCategoryModal()">✕</button>
+        </div>
+        <div class="category-modal-body">
+            <select class="category-select" id="categorySelect">
+            </select>
+            <button class="category-modal-btn refresh" onclick="SharedAdmin.refreshCategoryList()">
+                REFRESH LIST <span>↻</span>
+            </button>
+            <button class="category-modal-btn load" onclick="SharedAdmin.loadCategory()">
+                LOAD CATEGORY <span>✓</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ERROR MODAL -->
+<div class="error-modal-overlay hidden" id="errorModalOverlay" onclick="SharedAdmin.closeErrorModalOnBackdrop(event)">
+    <div class="error-modal">
+        <div class="error-modal-header">
+            <span class="error-icon">⚠</span>
+            <h3 id="errorModalTitle">Error</h3>
+        </div>
+        <div class="error-modal-body" id="errorModalMessage">
+            Something went wrong.
+        </div>
+        <div class="error-modal-footer">
+            <button onclick="SharedAdmin.closeErrorModal()">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- REFEREE AUTH MODAL -->
+<div class="auth-modal-overlay hidden" id="authModalOverlay" onclick="SharedAdmin.closeAuthModalOnBackdrop(event)">
+    <div class="auth-modal">
+        <div class="auth-modal-header">
+            <h3 id="authModalTitle">Referee link</h3>
+            <button class="auth-modal-close" onclick="SharedAdmin.closeAuthModal()">✕</button>
+        </div>
+        <div class="auth-modal-body">
+            <div class="auth-qr-box" id="authQrBox"></div>
+            <div class="auth-url-row">
+                <input type="text" class="auth-url-input" id="authUrlInput" readonly>
+                <button class="auth-copy-btn" onclick="SharedAdmin.copyAuthUrl()">Copy</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- NAME EDIT MODAL -->
+<div class="auth-modal-overlay hidden" id="nameEditModalOverlay" onclick="SharedAdmin.closeNameEditModalOnBackdrop(event)">
+    <div class="auth-modal">
+        <div class="auth-modal-header">
+            <h3 id="nameEditModalTitle">Edit name</h3>
+            <button class="auth-modal-close" onclick="SharedAdmin.closeNameEditModal()">✕</button>
+        </div>
+        <div class="auth-modal-body">
+            <input type="text" class="name-edit-input" id="nameEditInput" maxlength="40" onkeydown="SharedAdmin.nameEditOnKeydown(event)">
+            <button class="auth-copy-btn name-edit-confirm" onclick="SharedAdmin.confirmNameEdit()">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- FLAG PICKER MODAL -->
+<div class="category-modal-overlay hidden" id="flagPickerOverlay" onclick="SharedAdmin.closeFlagPickerOnBackdrop(event)">
+    <div class="category-modal">
+        <div class="category-modal-header">
+            <h3>Select country</h3>
+            <button class="category-modal-close" onclick="SharedAdmin.closeFlagPicker()">✕</button>
+        </div>
+        <div class="flag-picker-grid" id="flagPickerGrid">
+            <!-- flag options generated dynamically -->
+        </div>
+    </div>
+</div>
+
+<!-- INFO MODAL (round/match transitions) -->
+<div class="info-modal-overlay hidden" id="infoModalOverlay" onclick="SharedAdmin.closeInfoModalOnBackdrop(event)">
+    <div class="info-modal">
+        <div class="info-modal-header">
+            <span class="info-icon" id="infoModalIcon">ⓘ</span>
+            <h3 id="infoModalTitle">Info</h3>
+        </div>
+        <div class="info-modal-body" id="infoModalMessage">
+            Message
+        </div>
+        <div class="error-modal-footer hidden" id="infoModalFooter">
+            <button id="infoModalBtn" onclick="SharedAdmin.closeInfoModal()">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- WINNER MODAL -->
+<div class="info-modal-overlay hidden" id="winnerModalOverlay" onclick="closeWinnerModalOnBackdrop(event)">
+    <div class="info-modal">
+        <div class="info-modal-header">
+            <span class="info-icon">🏆</span>
+            <h3 id="winnerModalTitle">Match finished</h3>
+        </div>
+        <div class="info-modal-body" id="winnerModalMessage">
+            All rounds have been completed.
+        </div>
+        <div class="winner-modal-score" id="winnerModalScore"></div>
+        <div class="winner-btn-row">
+            <button class="winner-btn red" id="winnerBtnRed" onclick="confirmWinner('red')">RED WINS</button>
+            <button class="winner-btn blue" id="winnerBtnBlue" onclick="confirmWinner('blue')">BLUE WINS</button>
+        </div>
+        <div class="winner-cancel-row">
+            <button class="winner-cancel-btn" onclick="closeWinnerModal()">Cancel — review scores first</button>
+        </div>
+    </div>
+</div>
+
+<script src="admin-shared.js"></script>
+<script>
+    // ── TIMER STATE ──
+    let totalSeconds = parseInt(document.getElementById("roundDuration").value);
+    let remainingSeconds = totalSeconds;
+    let timerInterval = null;
+    let isRunning = false;
+    let isBreakPhase = false;
+
+    // ── DOCTOR TIMER STATE ──
+    // Cumulative remaining seconds per color, persists across pause/resume within a match.
+    let doctorTimerInterval = null;
+    let activeDoctorColor = null; // "red" | "blue" | null
+    let savedRoundIndicator = "1";
+    let savedRoundTotal = "1";
+
+    const doctorTimerState = {
+        red:  { remaining: parseInt(document.getElementById("doctorDuration").value) || 180, running: false },
+        blue: { remaining: parseInt(document.getElementById("doctorDuration").value) || 180, running: false }
+    };
+
+    const timerDisplay = document.getElementById("timerDisplay");
+    const startStopBtn = document.getElementById("startStopBtn");
+    const startStopLabel = document.getElementById("startStopLabel");
+    const startStopIcon = document.getElementById("startStopIcon");
+    const stateDot = document.getElementById("stateDot");
+    const stateText = document.getElementById("stateText");
+    const gongSound = document.getElementById('gong_sound');
+
+    // Disables the round START/PAUSE/RESUME button while a doctor timer is
+    // running, since the two timers can never run at the same time.
+    function syncRoundButtonWithDoctorTimer() {
+        startStopBtn.disabled = !!activeDoctorColor;
+        startStopBtn.title = activeDoctorColor
+            ? `Stop the doctor timer ${activeDoctorColor.toUpperCase()} first`
+            : "";
+    }
+
+    // Builds and sends the SP-specific display payload (shared base + timer/
+    // round/W-P/break/doctor fields). This is the single source of truth for
+    // pushing display updates — passed to SharedAdmin.configure() below, and
+    // also called directly anywhere this file used to call pushDisplayUpdate().
+    function pushDisplayUpdateSP() {
+        if (!window.displayBridge) return;
+        const base = SharedAdmin.buildBaseDisplayPayload();
+        if (!base) return;
+
+        window.displayBridge.update({
+            ...base,
+
+            roundIndicator: document.getElementById("roundIndicator")?.textContent ?? savedRoundIndicator,
+            roundTotal: document.getElementById("roundTotal")?.textContent ?? savedRoundTotal,
+            isBreakPhase: isBreakPhase,
+            activeDoctorColor: activeDoctorColor,
+            doctorTimerRemaining: activeDoctorColor ? doctorTimerState[activeDoctorColor]?.remaining : null,
+            doctorTimerTotal: parseInt(document.getElementById("doctorDuration")?.value) || 180,
+
+            remainingSeconds: remainingSeconds,
+            totalSeconds: totalSeconds,
+            isRunning: isRunning,
+
+            score: {
+                red: parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0,
+                blue: parseInt(document.getElementById("mainScoreRight")?.textContent) || 0
+            },
+            warnings: {
+                red: parseInt(document.getElementById("wScoreLeft")?.textContent) || 0,
+                blue: parseInt(document.getElementById("wScoreRight")?.textContent) || 0
+            },
+            minusPoints: {
+                red: parseInt(document.getElementById("pScoreLeft")?.textContent) || 0,
+                blue: parseInt(document.getElementById("pScoreRight")?.textContent) || 0
+            }
+        });
+    }
+
+    // ── SHARED ADMIN CONFIGURATION ──
+    SharedAdmin.configure({
+        refereeStartScore: 0, // fallback only; server's login response is the real source
+
+        onInitComplete: () => {
+            // Nothing extra needed for SP at login time.
+        },
+
+        // Called at the end of SharedAdmin.applyMatch() — SP doesn't reset the
+        // timer/round on match change (admin controls that manually).
+        onMatchApplied: (match) => {
+            // no-op for SP
+        },
+
+        pushDisplayUpdate: pushDisplayUpdateSP,
+
+        // Called after any referee score change — recalculates the SP main
+        // score (majority vote, higher wins) and notifies the server.
+        onRefereeScoreChanged: () => {
+            recalculateMainScoreSP();
+        },
+
+        // Extra fields merged into the "referee_score" log event.
+        extraLogContext: () => ({
+            round: document.getElementById("roundIndicator")?.textContent,
+            remaining: formatTime(remainingSeconds)
+        })
+    });
+
+    function recalculateMainScoreSP() {
+        SharedAdmin.recalculateMainScore(false); // SP: higher score wins per referee
+        notifyMatchScoreState();
+    }
+
+    function formatTime(seconds) {
+        const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+        const s = (seconds % 60).toString().padStart(2, "0");
+        return `${m}:${s}`;
+    }
+
+    function renderTimer() {
+        timerDisplay.textContent = formatTime(remainingSeconds);
+        timerDisplay.classList.remove("running", "warning");
+        if (isRunning) {
+            timerDisplay.classList.add(remainingSeconds <= 10 ? "warning" : "running");
+        }
+        pushDisplayUpdateSP();
+    }
+
+    function setState(running) {
+        isRunning = running;
+        if (running) {
+            stateDot.classList.add("play");
+            stateText.classList.remove("stop");
+            stateText.classList.add("play");
+            stateText.textContent = "PLAY";
+            timerDisplay.classList.add(remainingSeconds <= 10 ? "warning" : "running");
+        } else {
+            stateDot.classList.remove("play");
+            stateText.classList.remove("play");
+            stateText.classList.add("stop");
+            stateText.textContent = "STOP";
+            startStopLabel.textContent = "START";
+            startStopIcon.textContent = "▶";
+            timerDisplay.classList.remove("running", "warning");
+        }
+        renderTimer();
+    }
+
+    // Updates only the START/PAUSE/RESUME label without touching server state
+    function setButtonLabel(label, icon) {
+        startStopLabel.textContent = label;
+        startStopIcon.textContent = icon;
+    }
+
+    // ── DOCTOR TIMER ──
+    const doctorTimerLeftBtn = document.getElementById("doctorTimerLeftBtn");
+    const doctorTimerRightBtn = document.getElementById("doctorTimerRightBtn");
+    const roundLabelEl = document.querySelector(".round-label");
+
+    function doctorButtonLabel(color, state) {
+        const colorLabel = color.toUpperCase();
+        if (state === "pause") return `PAUSE DOCTOR TIMER ${colorLabel}`;
+        if (state === "resume") return `RESUME DOCTOR TIMER ${colorLabel}`;
+        return `START DOCTOR TIMER ${colorLabel}`;
+    }
+
+    function setDoctorButtonText(color, label) {
+        const btn = color === "red" ? doctorTimerLeftBtn : doctorTimerRightBtn;
+        const icon = btn.querySelector(".icon");
+        btn.innerHTML = "";
+        if (icon) btn.appendChild(icon);
+        btn.append(" " + label);
+    }
+
+    function toggleDoctorTimer(color) {
+        const ds = doctorTimerState[color];
+
+        if (ds.running) {
+            pauseDoctorTimer(color);
+            return;
+        }
+
+        if (isRunning) {
+            SharedAdmin.showToast("Pause the round timer before starting the doctor timer");
+            return;
+        }
+
+        if (activeDoctorColor && activeDoctorColor !== color) {
+            SharedAdmin.showToast(`Doctor timer ${activeDoctorColor.toUpperCase()} is already running`);
+            return;
+        }
+
+        startOrResumeDoctorTimer(color);
+    }
+
+    function startOrResumeDoctorTimer(color) {
+        const ds = doctorTimerState[color];
+
+        ds.running = true;
+        ds.everStarted = true;
+        activeDoctorColor = color;
+        syncRoundButtonWithDoctorTimer();
+
+        SharedAdmin.logEvent("doctor_timer_start", { color, remaining: ds.remaining });
+
+        setDoctorButtonText(color, doctorButtonLabel(color, "pause"));
+        renderDoctorOverlay(color);
+
+        doctorTimerInterval = setInterval(() => doctorTick(color), 1000);
+    }
+
+    function pauseDoctorTimer(color) {
+        clearInterval(doctorTimerInterval);
+        doctorTimerInterval = null;
+
+        const ds = doctorTimerState[color];
+        ds.running = false;
+        activeDoctorColor = null;
+        syncRoundButtonWithDoctorTimer();
+
+        SharedAdmin.logEvent("doctor_timer_stop", { color, remaining: ds.remaining });
+
+        setDoctorButtonText(color, doctorButtonLabel(color, "resume"));
+        restoreRoundDisplay();
+    }
+
+    function doctorTick(color) {
+        const ds = doctorTimerState[color];
+
+        if (ds.remaining <= 0) {
+            clearInterval(doctorTimerInterval);
+            doctorTimerInterval = null;
+            ds.running = false;
+            activeDoctorColor = null;
+            syncRoundButtonWithDoctorTimer();
+            setDoctorButtonText(color, doctorButtonLabel(color, "start"));
+            ds.remaining = 0;
+            restoreRoundDisplay();
+            SharedAdmin.showToast(`Doctor timer ${color.toUpperCase()} finished`);
+            return;
+        }
+
+        ds.remaining -= 1;
+        renderDoctorOverlay(color);
+    }
+
+    function renderDoctorOverlay(color) {
+        const ds = doctorTimerState[color];
+        timerDisplay.textContent = formatTime(ds.remaining);
+        timerDisplay.classList.remove("running", "warning");
+        timerDisplay.classList.add(ds.remaining <= 10 ? "warning" : "running");
+
+        const indicatorEl = document.getElementById("roundIndicator");
+        const totalEl = document.getElementById("roundTotal");
+        if (indicatorEl) savedRoundIndicator = indicatorEl.textContent;
+        if (totalEl) savedRoundTotal = totalEl.textContent;
+
+        roundLabelEl.innerHTML = `DOCTOR TIMER<br>${color.toUpperCase()}`;
+        pushDisplayUpdateSP();
+    }
+
+    function restoreRoundDisplay() {
+        roundLabelEl.innerHTML = `ROUND<br><span id="roundIndicator">${savedRoundIndicator}</span>/<span id="roundTotal">${savedRoundTotal}</span>`;
+        renderTimer();
+    }
+
+    // Allows manually adjusting the remaining round time (e.g. adding 10s back)
+    // by clicking the timer display. Blocked while the doctor timer overlay is
+    // showing, since the display would be showing the wrong value in that case.
+    function editRemainingTime() {
+        if (activeDoctorColor) {
+            SharedAdmin.showToast("Pause the doctor timer before editing the round time");
+            return;
+        }
+
+        SharedAdmin.openKeypad(null, "Remaining time (s)", 0, {
+            allowNegative: false,
+            initialValue: remainingSeconds,
+            onConfirm: (value) => {
+                remainingSeconds = Math.max(0, value);
+                if (remainingSeconds > totalSeconds) {
+                    totalSeconds = remainingSeconds;
+                }
+                renderTimer();
+                SharedAdmin.showToast(`Remaining time set to ${formatTime(remainingSeconds)}`);
+            }
+        });
+    }
+
+    function resetDoctorTimers() {
+        clearInterval(doctorTimerInterval);
+        doctorTimerInterval = null;
+        activeDoctorColor = null;
+        syncRoundButtonWithDoctorTimer();
+
+        const defaultDuration = parseInt(document.getElementById("doctorDuration").value) || 180;
+        ["red", "blue"].forEach(color => {
+            doctorTimerState[color] = { remaining: defaultDuration, running: false, everStarted: false };
+            setDoctorButtonText(color, doctorButtonLabel(color, "start"));
+        });
+
+        restoreRoundDisplay();
+    }
+
+    doctorTimerLeftBtn.addEventListener("click", () => toggleDoctorTimer("red"));
+    doctorTimerRightBtn.addEventListener("click", () => toggleDoctorTimer("blue"));
+
+    async function updateMatchStatus(state) {
+        try {
+            const res = await fetch(`${SharedAdmin.apiBase()}/api/match/status`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ state })
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        } catch (err) {
+            console.error("Match status update error:", err);
+        }
+    }
+
+    function tick() {
+        if (remainingSeconds <= 0) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+
+            if (isBreakPhase) {
+                onBreakFinished();
+            } else {
+                onRoundFinished();
+            }
+            return;
+        }
+        remainingSeconds -= 1;
+        renderTimer();
+        if (remainingSeconds <= 10) {
+            timerDisplay.classList.add("warning");
+        }
+    }
+
+    function onRoundFinished() {
+        setState(false);
+
+        const currentRound = parseInt(document.getElementById("roundIndicator").textContent) || 1;
+        const totalRounds = parseInt(document.getElementById("roundTotal").textContent) || 1;
+
+        const refereeCount = SharedAdmin.getRefereeCount();
+        const refereeState = SharedAdmin.getRefereeState();
+        const refereeBreakdown = [];
+        for (let i = 1; i <= refereeCount; i++) {
+            const ref = refereeState[i];
+            refereeBreakdown.push({ id: i, red: ref?.score?.red ?? 0, blue: ref?.score?.blue ?? 0 });
+        }
+
+        SharedAdmin.logEvent("round_end", {
+            round: currentRound,
+            referees: refereeBreakdown,
+            warnings: {
+                red: parseInt(document.getElementById("wScoreLeft")?.textContent) || 0,
+                blue: parseInt(document.getElementById("wScoreRight")?.textContent) || 0
+            },
+            minusPoints: {
+                red: parseInt(document.getElementById("pScoreLeft")?.textContent) || 0,
+                blue: parseInt(document.getElementById("pScoreRight")?.textContent) || 0
+            },
+            total: {
+                red: parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0,
+                blue: parseInt(document.getElementById("mainScoreRight")?.textContent) || 0
+            }
+        });
+
+        if (currentRound >= totalRounds) {
+            showWinnerModal();
+            return;
+        }
+
+        SharedAdmin.showInfoModal(
+            `Round ${currentRound} finished`,
+            "Click below to start the break before the next round.",
+            "START BREAK",
+            startBreak
+        );
+    }
+
+    function startBreak() {
+        isBreakPhase = true;
+        isRunning = true;
+        updateMatchStatus("stop");
+
+        totalSeconds = parseInt(document.getElementById("breakDuration").value) || 60;
+        remainingSeconds = totalSeconds;
+
+        SharedAdmin.logEvent("break_start", { duration: totalSeconds });
+
+        stateDot.classList.remove("play");
+        stateText.classList.remove("play");
+        stateText.classList.add("stop");
+        stateText.textContent = "BREAK";
+
+        renderTimer();
+        timerInterval = setInterval(tick, 1000);
+    }
+
+    function onBreakFinished() {
+        isBreakPhase = false;
+
+        const currentRound = parseInt(document.getElementById("roundIndicator").textContent) || 1;
+        document.getElementById("roundIndicator").textContent = currentRound + 1;
+        savedRoundIndicator = String(currentRound + 1);
+
+        totalSeconds = parseInt(document.getElementById("roundDuration").value) || 120;
+        remainingSeconds = totalSeconds;
+
+        setState(false);
+        setButtonLabel("START", "▶");
+    }
+
+    // ── WINNER MODAL ──
+    function showWinnerModal(matchEndedNaturally = true) {
+        const redScore = parseInt(document.getElementById("mainScoreLeft").textContent) || 0;
+        const blueScore = parseInt(document.getElementById("mainScoreRight").textContent) || 0;
+
+        const scoreEl = document.getElementById("winnerModalScore");
+        const messageEl = document.getElementById("winnerModalMessage");
+        const redBtn = document.getElementById("winnerBtnRed");
+        const blueBtn = document.getElementById("winnerBtnBlue");
+
+        const intro = matchEndedNaturally
+            ? "All rounds have been completed."
+            : "Set the winner now (e.g. retirement, injury, disqualification).";
+
+        scoreEl.innerHTML = `<span class="red-text">${redScore}</span> — <span class="blue-text">${blueScore}</span>`;
+        redBtn.classList.remove("suggested");
+        blueBtn.classList.remove("suggested");
+
+        if (redScore === blueScore) {
+            messageEl.textContent = `${intro} The result is currently a tie — please select the winner manually.`;
+        } else if (redScore > blueScore) {
+            messageEl.textContent = `${intro} RED is currently ahead — confirm the winner below.`;
+            redBtn.classList.add("suggested");
+        } else {
+            messageEl.textContent = `${intro} BLUE is currently ahead — confirm the winner below.`;
+            blueBtn.classList.add("suggested");
+        }
+
+        document.getElementById("winnerModalOverlay").classList.remove("hidden");
+    }
+
+    function confirmWinner(color) {
+        closeWinnerModal();
+        SharedAdmin.showToast(`${color.toUpperCase()} confirmed as the winner`);
+
+        const winnerName = color === "red"
+            ? document.getElementById("nameLeft")?.textContent
+            : document.getElementById("nameRight")?.textContent;
+        const scoreRed = parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0;
+        const scoreBlue = parseInt(document.getElementById("mainScoreRight")?.textContent) || 0;
+
+        SharedAdmin.logEvent("winner_confirmed", { color, name: winnerName, score: { red: scoreRed, blue: scoreBlue } });
+
+        if (window.displayBridge) {
+            window.displayBridge.update({
+                announceWinner: { color: color, name: winnerName, scoreRed: scoreRed, scoreBlue: scoreBlue }
+            });
+        }
+
+        notifyMatchUpdate(color);
+    }
+
+    // Sends the match result to the backend via /api/match/update — only
+    // when a real category/match was loaded from the API (not a manual edit).
+    async function notifyMatchUpdate(color) {
+        const categoryId = document.getElementById("categoryDisplay")?.dataset.categoryId;
+        const currentMatches = SharedAdmin.getCurrentMatches();
+        const currentMatchIndex = SharedAdmin.getCurrentMatchIndex();
+        const match = currentMatches[currentMatchIndex];
+
+        if (!categoryId || !match) {
+            console.log("Skipping backend match update — no category/match loaded from the API.");
+            return;
+        }
+
+        const scoreRed = parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0;
+        const scoreBlue = parseInt(document.getElementById("mainScoreRight")?.textContent) || 0;
+
+        const idWinner = color === "red" ? match.left_player_id : match.right_player_id;
+        const idLoser = color === "red" ? match.right_player_id : match.left_player_id;
+
+        try {
+            const res = await fetch(`${SharedAdmin.apiBase()}/api/match/update`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id_category: categoryId,
+                    pool: match.pool,
+                    id_match: match.id_match,
+                    id_real_match: match.id_real_match,
+                    id_winner: idWinner,
+                    id_loser: idLoser,
+                    left_score: scoreRed,
+                    right_score: scoreBlue,
+                    tie: "N"
+                })
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+            console.log("Match update sent successfully:", data);
+            SharedAdmin.logEvent("match_update_sent", { result: data.result, finish: data.finish });
+
+            if (data.finish === "Y") {
+                const finishedCategoryName = document.getElementById("categoryDisplay").textContent;
+                SharedAdmin.logEvent("category_finished", { category: finishedCategoryName });
+                SharedAdmin.showInfoModal(
+                    "Category finished",
+                    `"${finishedCategoryName}" has been completed — all matches are done. Click below to reset and load a new category.`,
+                    "OK",
+                    SharedAdmin.resetCategoryForNextLoad,
+                    { icon: "✅", success: true }
+                );
+                return;
+            }
+
+            await SharedAdmin.loadMatches(categoryId, match.pool, true);
+            SharedAdmin.showToast("Match result saved — moved to next match");
+
+        } catch (err) {
+            console.error("Failed to send match update to backend:", err);
+            SharedAdmin.showErrorModal("Could not update match", "Failed to send the match result to the backend. Please check the connection and try again.");
+        }
+    }
+
+    function closeWinnerModal() {
+        document.getElementById("winnerModalOverlay").classList.add("hidden");
+    }
+
+    function closeWinnerModalOnBackdrop(event) {
+        if (event.target.id === "winnerModalOverlay") closeWinnerModal();
+    }
+
+    // ── ROUND TIMER CONTROLS ──
+    function startTimer() {
+        if (timerInterval) return;
+
+        if (activeDoctorColor) {
+            SharedAdmin.showToast(`Stop the doctor timer ${activeDoctorColor.toUpperCase()} before starting the round`);
+            return;
+        }
+
+        if (remainingSeconds <= 0) {
+            onRoundFinished();
+            return;
+        }
+
+        setState(true);
+        setButtonLabel("PAUSE", "❙❙");
+        gongSound.play();
+        timerInterval = setInterval(tick, 1000);
+        updateMatchStatus("play");
+    }
+
+    function pauseTimer() {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        isRunning = false;
+        stateDot.classList.remove("play");
+        timerDisplay.classList.remove("running", "warning");
+        setButtonLabel("RESUME", "▶");
+        renderTimer();
+    }
+
+    function resumeTimer() {
+        if (timerInterval) return;
+
+        if (activeDoctorColor) {
+            SharedAdmin.showToast(`Stop the doctor timer ${activeDoctorColor.toUpperCase()} before resuming the round`);
+            return;
+        }
+
+        isRunning = true;
+        stateDot.classList.add("play");
+        timerDisplay.classList.add(remainingSeconds <= 10 ? "warning" : "running");
+        setButtonLabel("PAUSE", "❙❙");
+        timerInterval = setInterval(tick, 1000);
+        renderTimer();
+    }
+
+    function stopTimer() {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        setState(false);
+        updateMatchStatus("stop");
+    }
+
+    startStopBtn.addEventListener("click", () => {
+        const label = startStopLabel.textContent;
+        if (label === "START") {
+            startTimer();
+        } else if (label === "PAUSE") {
+            pauseTimer();
+        } else if (label === "RESUME") {
+            resumeTimer();
+        }
+    });
+
+    document.getElementById("resetAllBtn").addEventListener("click", () => {
+        stopTimer();
+        SharedAdmin.closeInfoModal();
+        resetDoctorTimers();
+
+        isBreakPhase = false;
+        document.getElementById("roundIndicator").textContent = "1";
+        savedRoundIndicator = "1";
+        savedRoundTotal = document.getElementById("roundTotal")?.textContent || "1";
+
+        totalSeconds = parseInt(document.getElementById("roundDuration").value) || 120;
+        remainingSeconds = totalSeconds;
+        renderTimer();
+        setButtonLabel("START", "▶");
+
+        ["wScoreLeft", "wScoreRight", "pScoreLeft", "pScoreRight", "mainScoreLeft", "mainScoreRight"].forEach(id => {
+            document.getElementById(id).textContent = "0";
+        });
+
+        const refereeCount = SharedAdmin.getRefereeCount();
+        const refereeState = SharedAdmin.getRefereeState();
+        for (let i = 1; i <= refereeCount; i++) {
+            if (!refereeState[i]) continue;
+            refereeState[i].score = { red: 0, blue: 0 };
+
+            const redBox = document.getElementById(`refScoreRed${i}`);
+            const blueBox = document.getElementById(`refScoreBlue${i}`);
+            if (redBox) redBox.textContent = "0";
+            if (blueBox) blueBox.textContent = "0";
+
+            if (refereeState[i].connected) {
+                SharedAdmin.notifyRefereeScore(i, refereeState[i].score);
+            }
+        }
+
+        notifyMatchScoreState();
+    });
+
+    document.getElementById("roundDuration").addEventListener("change", (e) => {
+        if (!isRunning) {
+            totalSeconds = parseInt(e.target.value) || 120;
+            remainingSeconds = totalSeconds;
+            renderTimer();
+        }
+    });
+
+    // Sync ROUND total display with ROUND NUMBER field
+    document.getElementById("roundCount").addEventListener("change", (e) => {
+        document.getElementById("roundTotal").textContent = e.target.value;
+        savedRoundTotal = e.target.value;
+    });
+
+    // ── WARNING / PENALTY LOGIC ──
+    // Every 3 warnings (W) for a color, 1 point is automatically removed (P+1, shown as -P).
+    function bindWarningCounter(plusId, minusId, wDisplayId, color) {
+        const wDisplay = document.getElementById(wDisplayId);
+
+        document.getElementById(plusId).addEventListener("click", () => {
+            const newW = parseInt(wDisplay.textContent) + 1;
+            wDisplay.textContent = newW;
+
+            const wRed = color === "red" ? newW : parseInt(document.getElementById("wScoreLeft")?.textContent) || 0;
+            const wBlue = color === "blue" ? newW : parseInt(document.getElementById("wScoreRight")?.textContent) || 0;
+            SharedAdmin.logEvent("warning", {
+                round: document.getElementById("roundIndicator")?.textContent,
+                remaining: formatTime(remainingSeconds),
+                red: wRed,
+                blue: wBlue
+            });
+
+            if (newW % 3 === 0) {
+                SharedAdmin.subtractPointFromAllReferees(color);
+                recalculateMainScoreSP();
+                SharedAdmin.showToast(`3 warnings reached — 1 point removed from all referees (${color})`);
+            } else {
+                notifyMatchScoreState();
+            }
+        });
+
+        document.getElementById(minusId).addEventListener("click", () => {
+            wDisplay.textContent = Math.max(0, parseInt(wDisplay.textContent) - 1);
+            notifyMatchScoreState();
+        });
+    }
+
+    function bindPenaltyMinus(minusId, pDisplayId) {
+        document.getElementById(minusId).addEventListener("click", () => {
+            const pDisplay = document.getElementById(pDisplayId);
+            pDisplay.textContent = Math.max(0, parseInt(pDisplay.textContent) - 1);
+            notifyMatchScoreState();
+        });
+    }
+
+    function bindPenaltyPlus(plusId, pDisplayId, color) {
+        document.getElementById(plusId).addEventListener("click", () => {
+            const pDisplay = document.getElementById(pDisplayId);
+            pDisplay.textContent = parseInt(pDisplay.textContent) + 1;
+
+            const pRed = color === "red" ? parseInt(pDisplay.textContent) : parseInt(document.getElementById("pScoreLeft")?.textContent) || 0;
+            const pBlue = color === "blue" ? parseInt(pDisplay.textContent) : parseInt(document.getElementById("pScoreRight")?.textContent) || 0;
+            SharedAdmin.logEvent("minus_points", {
+                round: document.getElementById("roundIndicator")?.textContent,
+                remaining: formatTime(remainingSeconds),
+                red: pRed,
+                blue: pBlue
+            });
+
+            SharedAdmin.subtractPointFromAllReferees(color);
+            recalculateMainScoreSP();
+            SharedAdmin.showToast(`Penalty given — 1 point removed from all referees (${color})`);
+        });
+    }
+
+    bindWarningCounter("wPlusLeft",  "wMinusLeft",  "wScoreLeft",  "red");
+    bindWarningCounter("wPlusRight", "wMinusRight", "wScoreRight", "blue");
+    bindPenaltyMinus("pMinusLeft",  "pScoreLeft");
+    bindPenaltyMinus("pMinusRight", "pScoreRight");
+    bindPenaltyPlus("pPlusLeft",  "pScoreLeft",  "red");
+    bindPenaltyPlus("pPlusRight", "pScoreRight", "blue");
+
+    // Notifies the server of the current overall score, warnings and minus
+    // points (the general W/-P boxes, not per-referee scores), and pushes
+    // the same data to the public display.
+    async function notifyMatchScoreState() {
+        pushDisplayUpdateSP();
+        try {
+            const body = {
+                score: {
+                    red: parseInt(document.getElementById("mainScoreLeft").textContent) || 0,
+                    blue: parseInt(document.getElementById("mainScoreRight").textContent) || 0
+                },
+                warnings: {
+                    red: parseInt(document.getElementById("wScoreLeft").textContent) || 0,
+                    blue: parseInt(document.getElementById("wScoreRight").textContent) || 0
+                },
+                minusPoints: {
+                    red: parseInt(document.getElementById("pScoreLeft").textContent) || 0,
+                    blue: parseInt(document.getElementById("pScoreRight").textContent) || 0
+                }
+            };
+
+            const res = await fetch(`${SharedAdmin.apiBase()}/api/match/details`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        } catch (err) {
+            console.error("Failed to notify match score state:", err);
+        }
+    }
+
+    renderTimer();
+
+    window.addEventListener("load", SharedAdmin.init);
+</script>
+</body>
+</html>
