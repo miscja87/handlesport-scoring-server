@@ -641,7 +641,18 @@
         document.getElementById("roundIndicator").textContent = currentPattern + 1;
         patternNameDisplay.textContent = "OPTIONAL";
         pushDisplayUpdatePT();
+        clearPatternDisplay();
         SharedAdmin.showToast(`Moved to PATTERN ${currentPattern + 1}`);
+    }
+
+    // Tells the display window to clear the pattern name box back to a
+    // neutral placeholder — used whenever a name shouldn't be visible yet
+    // (after SHUFFLE but before START, after advancing pattern, after reset).
+    function clearPatternDisplay() {
+        if (!window.displayBridge) return;
+        window.displayBridge.update({
+            clearPatternName: true
+        });
     }
 
     async function updateMatchStatus(state) {
@@ -658,8 +669,21 @@
     }
 
     startStopBtn.addEventListener("click", () => {
+        const isStarting = !isRunning;
         setState(!isRunning);
+
+        if (isStarting) {
+            announcePatternStart();
+        }
     });
+
+    function announcePatternStart() {
+        if (!window.displayBridge) return;
+        const name = patternNameDisplay?.textContent || "";
+        window.displayBridge.update({
+            announcePatternStart: { name }
+        });
+    }
 
     // Builds and sends the PT-specific display payload (shared base + W-P +
     // pattern name/number). No timer/round/break/doctor fields since PT has
@@ -671,13 +695,25 @@
         const base = SharedAdmin.buildBaseDisplayPayload();
         if (!base) return;
 
+        const refereeCount = SharedAdmin.getRefereeCount();
+        const refereeState = SharedAdmin.getRefereeState();
+        const patternReferees = { 1: [], 2: [] };
+        for (let i = 1; i <= refereeCount; i++) {
+            const ref = refereeState[i];
+            const isActive = !!(ref && ref.connected && ref.enabled);
+            const scores = patternScores[i] || { 1: { red: 10, blue: 10 }, 2: { red: 10, blue: 10 } };
+
+            patternReferees[1].push({ score: scores[1], active: isActive });
+            patternReferees[2].push({ score: scores[2], active: isActive });
+        }
+
         window.displayBridge.update({
             ...base,
 
             roundIndicator: document.getElementById("roundIndicator")?.textContent,
             roundTotal: document.getElementById("roundTotal")?.textContent,
-            patternName: patternNameDisplay?.textContent,
             isRunning: isRunning,
+            patternReferees: patternReferees,
 
             score: {
                 red: parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0,
@@ -1157,6 +1193,7 @@
         resetAllRefereeScoresTo10();
         resetPatternScores();
         recalculateMainScorePT();
+        clearPatternDisplay();
     });
 
     // Resets every referee's live (current pattern) score back to 10/10 and

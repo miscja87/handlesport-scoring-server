@@ -687,7 +687,7 @@
             btn.textContent = "📺 OPEN DISPLAY";
             btn.classList.remove("active");
         } else {
-            window.displayBridge.openDisplay();
+            window.displayBridge.openDisplay(setupSpecialty);
             displayWindowOpen = true;
             btn.textContent = "📺 DISPLAY ON";
             btn.classList.add("active");

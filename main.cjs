@@ -1,10 +1,9 @@
 const { app, BrowserWindow, screen, ipcMain } = require("electron");
 
-let win         = null;
-let displayWin  = null; 
+let win = null;          // admin window (primary)
+let displayWin = null;   // public display window (secondary monitor)
 
 function createWindow() {
-
     win = new BrowserWindow({
         width: 1400,
         height: 900,
@@ -18,9 +17,7 @@ function createWindow() {
     win.loadURL("http://localhost:8080/intro");
 
     win.on("closed", () => {
-        
         win = null;
-        
         // Close the display window too when the admin window closes
         if (displayWin) {
             displayWin.close();
@@ -29,10 +26,10 @@ function createWindow() {
     });
 }
 
-function openDisplayWindow() {
-    
+// Opens (or focuses) the public display window on the external monitor if one
+// is connected, otherwise falls back to the primary display in a separate window.
+function openDisplayWindow(specialty) {
     if (displayWin) {
-        
         displayWin.focus();
         return;
     }
@@ -57,7 +54,8 @@ function openDisplayWindow() {
         }
     });
 
-    displayWin.loadURL("http://localhost:8080/display");
+    const specialtyParam = (specialty || "sp").toLowerCase();
+    displayWin.loadURL(`http://localhost:8080/display?specialty=${specialtyParam}`);
 
     displayWin.on("closed", () => {
         displayWin = null;
@@ -65,15 +63,17 @@ function openDisplayWindow() {
 }
 
 function closeDisplayWindow() {
-    
     if (displayWin) {
         displayWin.close();
         displayWin = null;
     }
 }
 
-ipcMain.on("display:open", () => {
-    openDisplayWindow();
+// ── IPC BRIDGE ──
+// admin.html (via preload-admin.cjs) sends "display:update" with any payload.
+// We forward it untouched to display.html (via preload-display.cjs).
+ipcMain.on("display:open", (event, specialty) => {
+    openDisplayWindow(specialty);
 });
 
 ipcMain.on("display:close", () => {
@@ -87,8 +87,6 @@ ipcMain.on("display:update", (event, payload) => {
 });
 
 app.whenReady().then(async () => {
-    
-    // dynamic import perché server.js è ESM
     const { startServer } = await import("./server.js");
 
     startServer();
@@ -96,6 +94,5 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => {
-    
     if (process.platform !== "darwin") app.quit();
 });

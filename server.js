@@ -608,7 +608,9 @@ app.get("/admin", (req, res) => {
 });
 
 app.get("/display", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "display.html"));
+    const specialty = req.query.specialty.toLowerCase();
+    const fileName = `display-${specialty}.html`;
+    res.sendFile(path.join(__dirname, "public", fileName));
 });
 
 app.get("/intro", (req, res) => {
