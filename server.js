@@ -262,10 +262,11 @@ function getLocalIP() {
     const interfaces = os.networkInterfaces();
 
     for (let name of Object.keys(interfaces)) {
+        
         for (let net of interfaces[name]) {
-            if (
-                net.family === "IPv4" && !net.internal && net.address.startsWith("192.168")
-            ) {
+            
+            if (net.family === "IPv4" && !net.internal) {
+                
                 return net.address;
             }
         }
