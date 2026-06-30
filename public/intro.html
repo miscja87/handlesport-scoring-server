@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup</title>
+    <link rel="icon" href="/favicon.ico">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #1a1f2e;
+            font-family: 'Arial', sans-serif;
+            color: #e8eaf0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .card {
+            background: #1f2638;
+            border-radius: 12px;
+            width: 460px;
+            max-width: 100%;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+
+        .card-header {
+            padding: 28px 28px 20px;
+            border-bottom: 1px solid #2a3550;
+        }
+        .card-header h1 {
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: 0.5px;
+        }
+        .card-header p {
+            color: #8a93a8;
+            font-size: 13px;
+            margin-top: 6px;
+        }
+
+        .card-body {
+            padding: 24px 28px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .field label {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: #a0aab8;
+            text-transform: uppercase;
+        }
+
+        .field select {
+            background: #252d3f;
+            border: 1px solid #3a4560;
+            color: #e8eaf0;
+            padding: 12px 14px;
+            border-radius: 6px;
+            font-size: 15px;
+            outline: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a93a8' stroke-width='2'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            background-size: 18px;
+        }
+        .field select:focus { border-color: #1a6fa8; }
+        .field select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .specialty-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .specialty-btn {
+            background: #252d3f;
+            border: 1px solid #3a4560;
+            color: #c8ccd8;
+            padding: 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            text-align: center;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        .specialty-btn:active { filter: brightness(1.2); }
+        .specialty-btn.selected {
+            background: #1a6fa8;
+            border-color: #1a6fa8;
+            color: white;
+        }
+
+        .continue-btn {
+            margin-top: 4px;
+            background: #2a9a5a;
+            border: none;
+            color: white;
+            font-weight: 900;
+            font-size: 15px;
+            letter-spacing: 0.5px;
+            padding: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: filter 0.15s, opacity 0.15s;
+        }
+        .continue-btn:active:not(:disabled) { filter: brightness(1.15); }
+        .continue-btn:disabled {
+            background: #3a4560;
+            color: #6a7590;
+            cursor: not-allowed;
+        }
+
+        .status-msg {
+            font-size: 13px;
+            color: #8a93a8;
+            text-align: center;
+        }
+        .status-msg.error { color: #e05a5a; }
+
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #3a4560;
+            border-top-color: #4a9fd8;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── ERROR MODAL (reused style) ── */
+        .error-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.65);
+            z-index: 300;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .error-modal {
+            background: #1f2638;
+            border-radius: 10px;
+            width: 380px;
+            max-width: 90vw;
+            overflow: hidden;
+            border: 1px solid #5a2a30;
+        }
+        .error-modal-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 18px 20px;
+            border-bottom: 1px solid #2a3550;
+        }
+        .error-modal-header .error-icon { color: #e05a5a; font-size: 20px; }
+        .error-modal-header h3 { color: #e05a5a; font-size: 16px; font-weight: 700; }
+        .error-modal-body { padding: 20px; color: #c8ccd8; font-size: 14px; line-height: 1.5; }
+        .error-modal-footer { padding: 0 20px 20px; }
+        .error-modal-footer button {
+            width: 100%;
+            border: none;
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            padding: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #cc3340;
+        }
+        .error-modal-footer button:active { filter: brightness(1.2); }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <div class="card-header">
+            <h1>Scoring setup</h1>
+            <p>Select the event, ring and specialty to start scoring.</p>
+        </div>
+
+        <div class="card-body">
+            <div class="field">
+                <label>Event</label>
+                <select id="eventSelect" disabled onchange="onFieldChange()">
+                    <option value="">Loading events...</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label>Ring</label>
+                <select id="ringSelect" onchange="onFieldChange()">
+                    <option value="">Select ring</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label>Specialty</label>
+                <div class="specialty-row">
+                    <div class="specialty-btn" id="specialtySP" onclick="selectSpecialty('SP')">SPARRING</div>
+                    <div class="specialty-btn" id="specialtyPT" onclick="selectSpecialty('PT')">PATTERN</div>
+                </div>
+            </div>
+
+            <button class="continue-btn" id="continueBtn" disabled onclick="goToAdmin()">CONTINUE</button>
+
+            <div class="status-msg" id="statusMsg"></div>
+        </div>
+    </div>
+
+    <!-- ERROR MODAL -->
+    <div class="error-modal-overlay hidden" id="errorModalOverlay" onclick="closeErrorModalOnBackdrop(event)">
+        <div class="error-modal">
+            <div class="error-modal-header">
+                <span class="error-icon">⚠</span>
+                <h3 id="errorModalTitle">Error</h3>
+            </div>
+            <div class="error-modal-body" id="errorModalMessage">Something went wrong.</div>
+            <div class="error-modal-footer">
+                <button onclick="closeErrorModal()">OK</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const RING_COUNT = 10;
+    let selectedSpecialty = null;
+
+    const eventSelect = document.getElementById("eventSelect");
+    const ringSelect = document.getElementById("ringSelect");
+    const continueBtn = document.getElementById("continueBtn");
+    const statusMsg = document.getElementById("statusMsg");
+
+    // ── INIT ──
+    async function init() {
+        populateRingOptions();
+        await loadEvents();
+    }
+
+    function populateRingOptions() {
+        ringSelect.innerHTML = `<option value="">Select ring</option>`;
+        for (let i = 1; i <= RING_COUNT; i++) {
+            const opt = document.createElement("option");
+            opt.value = i;
+            opt.textContent = `Ring ${i}`;
+            ringSelect.appendChild(opt);
+        }
+    }
+
+    async function loadEvents() {
+        statusMsg.innerHTML = `<span class="spinner"></span> Loading events...`;
+        try {
+            const base = "http://localhost:8080";
+            const res = await fetch(`${base}/api/events`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const events = await res.json();
+
+            eventSelect.innerHTML = `<option value="">Select event</option>`;
+            events.forEach(ev => {
+                const opt = document.createElement("option");
+                opt.value = ev.id;
+                opt.textContent = ev.des_event;
+                eventSelect.appendChild(opt);
+            });
+
+            eventSelect.disabled = false;
+            statusMsg.textContent = "";
+
+        } catch (err) {
+            console.error("Failed to load events:", err);
+            statusMsg.innerHTML = "";
+            showErrorModal("Could not load events", "Failed to fetch the event list from the server. Please check that the local server is running and try again.");
+        }
+    }
+
+    // ── SPECIALTY ──
+    function selectSpecialty(value) {
+        selectedSpecialty = value;
+        document.getElementById("specialtySP").classList.toggle("selected", value === "SP");
+        document.getElementById("specialtyPT").classList.toggle("selected", value === "PT");
+        onFieldChange();
+    }
+
+    // ── VALIDATION ──
+    function onFieldChange() {
+        const valid = eventSelect.value && ringSelect.value && selectedSpecialty;
+        continueBtn.disabled = !valid;
+    }
+
+    // ── CONTINUE ──
+    function goToAdmin() {
+        const params = new URLSearchParams({
+            event: eventSelect.value,
+            ring: ringSelect.value,
+            specialty: selectedSpecialty
+        });
+        window.location.href = `/admin?${params.toString()}`;
+    }
+
+    // ── ERROR MODAL ──
+    function showErrorModal(title, message) {
+        document.getElementById("errorModalTitle").textContent = title;
+        document.getElementById("errorModalMessage").textContent = message;
+        document.getElementById("errorModalOverlay").classList.remove("hidden");
+    }
+    function closeErrorModal() {
+        document.getElementById("errorModalOverlay").classList.add("hidden");
+    }
+    function closeErrorModalOnBackdrop(event) {
+        if (event.target.id === "errorModalOverlay") closeErrorModal();
+    }
+
+    window.addEventListener("load", init);
+</script>
+
+</body>
+</html>

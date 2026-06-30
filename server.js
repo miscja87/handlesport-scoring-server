@@ -2,13 +2,25 @@ import express from "express";
 import cors from "cors";
 import os from "os";
 import path from "path";
+import fs from "fs";
+import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { initScores, getScores, updateScore, deleteScore } from "./scores.js";
 import { createMatch, updateMatchDetails, updateMatchState, getMatchState } from "./match.js";
 import { loginAsServer, createRefereeDoc, updateRefereeDoc, deleteRefereeDoc, auth } from "./firestore.js";
-import { ACTIONS } from "./constants.js";
+import { ACTIONS, API_KEY, HANDLESPORT_BACKEND_URL } from "./constants.js";
 import { SPECIALTY_CONFIGURATION } from "./specialty.js";
-import { config } from "process";
+import {
+    initLogger,
+    appendLogEntry,
+    startLogSession,
+    hasActiveLogSession,
+    listLogFiles,
+    getLogFilePath,
+    isValidLogFileName,
+    logFileExists
+} from "./logger.js";
 
 // dir name
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -18,12 +30,22 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+// Constants
+const PORT = 8080;
+const LOCAL_IP = getLocalIP();
+
+initLogger(path.join(__dirname, "logs"));
+
 // Initial state
 let adminClient = null;
 let clients = [];
 let event = null;
 let ring = null;
 let specialtyCode = null;
+let serverId = null;
+let jwtToken = null;
+
+// ── SSE STREAMS ──
 
 // admin stream
 app.get("/stream/admin", (req, res) => {
@@ -59,10 +81,12 @@ app.get("/stream/clients", (req, res) => {
     });
 });
 
+// ── AUTH / LOGIN ──
+
 // Login as server (for Firestore access)
 app.post("/api/login/admin", async (req, res) => {
     try {
-        const { eventId, ringId, specialty, referees } = req.body;
+        const { eventId, ringId, specialty } = req.body;
         
         validate(res, eventId, ringId);
         
@@ -72,16 +96,33 @@ app.post("/api/login/admin", async (req, res) => {
 
         console.log("Login server", event, ring);
         
-        // Login to Firebase as server
-        await loginAsServer(event, ring);
+        // Login to Firebase as server if not already logged in
+        if (!serverId) {       
+            
+            await loginAsServer(event, ring);
 
-        // Initialize scores in memory
-        initScores(referees, SPECIALTY_CONFIGURATION[specialtyCode].startScore);
+            // Initialize scores in memory
+            initScores(SPECIALTY_CONFIGURATION[specialtyCode].referees, SPECIALTY_CONFIGURATION[specialtyCode].startScore);
 
-        // Create match
-        await createMatch(event, ring, specialtyCode);
+            // Create match
+            await createMatch(event, ring, specialtyCode);
 
-        res.json({ ok: true, uid: auth.currentUser.uid, localIp: getLocalIP() });
+            // Set server id
+            serverId = auth.currentUser.uid;
+
+            // Generate JWT token
+            jwtToken = generateJwt(event, ring);
+        }
+
+        res.json({
+            ok: true,
+            uid: serverId,
+            token: jwtToken,
+            referees : SPECIALTY_CONFIGURATION[specialtyCode].referees,
+            refereeStartScore: SPECIALTY_CONFIGURATION[specialtyCode].startScore,
+            localIp: LOCAL_IP
+        });
+    
     } catch (err) {
         console.error("Login failed:", err);
         res.status(401).json({ ok: false, error: err.message });
@@ -94,18 +135,41 @@ app.post("/api/login/referee", async (req, res) => {
     validate(res, event, ring);
 
     try {
-        const { refereeId } = req.body;
+        const { refereeId, token } = req.body;
+        const currentScores = getScores();
+        const referee = currentScores?.[refereeId];
+
+        if (!referee) {
+            
+            return res.status(404).json({ error: `Referee with id ${refereeId} not found` });
+        }
+
+        const validToken = token && referee.token === token;
+
+        if (!validToken) {
+            
+            return res.status(401).json({ error: "Invalid token" });
+        }
+
         const startScore = SPECIALTY_CONFIGURATION[specialtyCode].startScore;
         const buttons = SPECIALTY_CONFIGURATION[specialtyCode].buttons;
+        const defaultButton = SPECIALTY_CONFIGURATION[specialtyCode].defaultButton;
+
         console.log("Login referee", event, ring, refereeId);
-        console.log("Creating referee document in Firestore with initial score", startScore);
+        console.log("Creating referee document in Firestore with initial score", startScore);    
         await createRefereeDoc(event, ring, refereeId, { red: startScore, blue: startScore });
-        res.json({ ok: true, configuration: { startScore : startScore, buttons : buttons } });
+
+        // send score to admin
+        broadcastAdmin({ referee: refereeId, action: ACTIONS.CONNECTED });
+
+        res.json({ ok: true, score: referee.score, configuration: { ring, startScore : startScore, buttons : buttons, defaultButton : defaultButton } });
     } catch (err) {
         console.error("Login failed:", err);
         res.status(401).json({ ok: false, error: err.message });
     }
 });
+
+// ── REFEREE SCORE ──
 
 // Update score by referee
 app.post("/api/score/referee/:id", (req, res) => {
@@ -134,7 +198,7 @@ app.post("/api/score/referee/:id", (req, res) => {
     }
 
     // save score in Firestore
-    updateRefereeDoc(event, ring, referee, updated );
+    updateRefereeDoc(event, ring, referee, { score: updated.score, action: updated.action } );
     
     res.json({ ok: true });
 });
@@ -179,6 +243,22 @@ app.get("/api/score/referee/:id", (req, res) => {
     res.json(currentScores[referee]);
 });
 
+// Referee url
+app.get("/api/tablet/url/:refereeId", (req, res) => {
+    
+    const { refereeId } = req.params;
+
+    const currentScores = getScores();
+    const referee = currentScores?.[refereeId];
+    if (!referee) return res.status(404).json({ error: `Referee ${refereeId} not found` });
+
+    const url = `http://${LOCAL_IP}:${PORT}/tablet/${refereeId}?token=${referee.token}`;
+
+    res.json({ ok: true, refereeId, url });
+});
+
+// ── MATCH ──
+
 // Get match status
 app.get("/api/match/status", (req, res) => {
     
@@ -220,16 +300,334 @@ app.post("/api/match/details", (req, res) => {
     res.json({ ok: true });
 });
 
-// Start server
-export async function startServer() {
-    const PORT = 8080;
-    const LOCAL_IP = getLocalIP();    
+// Update match result
+app.post("/api/match/update", async (req, res) => {
+ 
+    try {
+        validate(res, event, ring);
+ 
+        const {
+            id_category,
+            pool,
+            id_match,
+            id_real_match,
+            id_winner,
+            id_loser,
+            left_score,
+            right_score,
+            tie
+        } = req.body;
+ 
+        if (!id_category || !pool || !id_match || !id_real_match) {
+            
+            return res.status(400).json({ok: false, error: "id_category, pool, id_match and id_real_match are required"});
+        }
+ 
+        const rawParams = {
+            id_event: event,
+            id_ring: ring,
+            id_category,
+            pool,
+            id_match,
+            id_real_match,
+            id_winner,
+            id_loser,
+            left_score,
+            right_score,
+            tie,
+            app: true
+        };
 
+        // Avoid sending literal "undefined"/"null" strings for missing values.
+        const filteredParams = Object.fromEntries(
+            Object.entries(rawParams).filter(([, v]) => v !== undefined && v !== null)
+        );
+
+        const bodyParams = new URLSearchParams(filteredParams);
+ 
+        const response = await fetch(
+            `${HANDLESPORT_BACKEND_URL}/scoring/updateMatch`,
+            {
+                method: "POST",
+                headers: {"Content-Type": "application/x-www-form-urlencoded", token: jwtToken },
+                body: bodyParams.toString()
+            }
+        );
+ 
+        const data = await response.json();
+ 
+        if (!response.ok) {
+            
+            return res.status(response.status).json(data);
+        }
+ 
+        if (data.result !== "OK") {
+            
+            return res.status(400).json({ ok: false, error: "Update in updating match result", result: data.result, raw: data });
+        }
+
+        return res.json({ ok: true, finish: data.finish });
+ 
+    } catch (err) {
+        
+        console.error(err);
+        
+        return res.status(500).json({ ok: false, error: "Failed to update match" });
+    }
+});
+
+// ── HANDLESPORT BACKEND PROXIES ──
+
+// Get categories
+app.get("/api/categories", async (req, res) => {
+
+    try {
+        validate(res, event, ring);
+
+        const response = await fetch(
+            `${HANDLESPORT_BACKEND_URL}/scoring/getCategories?specialty_code=${specialtyCode}&id_event=${event}&id_ring=${ring}`,
+            { headers: { token: jwtToken }}
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            
+            return res.status(response.status).json(data);
+        }
+
+        return res.json(data);
+
+    } catch (err) {
+        
+        console.error(err);
+
+        return res.status(500).json({ok: false, error: "Failed to fetch categories"});
+    }
+});
+
+// Get matches
+app.get("/api/matches", async (req, res) => {
+
+    try {
+        validate(res, event, ring);
+
+        const { id_category, pool } = req.query;
+
+        if (!id_category || !pool) {
+            
+            return res.status(400).json({ ok: false, error: "id_category and pool are required" });
+        }
+
+        const response = await fetch(
+            `${HANDLESPORT_BACKEND_URL}/scoring/loadMatches?id_event=${event}&id_ring=${ring}&id_category=${id_category}&pool=${pool}`,
+            { headers: { token: jwtToken }}
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            
+            return res.status(response.status).json(data);
+        }
+
+        return res.json(data);
+
+    } catch (err) {
+        
+        console.error(err);
+
+        return res.status(500).json({ok: false, error: "Failed to fetch categories"});
+    }
+});
+
+// Get events
+app.get("/api/events", async (req, res) => {
+
+    try {
+
+        const response = await fetch(`${HANDLESPORT_BACKEND_URL}/scoring/getEvents`);
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            
+            return res.status(response.status).json(data);
+        }
+
+        return res.json(data);
+
+    } catch (err) {
+        
+        console.error(err);
+
+        return res.status(500).json({ok: false, error: "Failed to fetch events"});
+    }
+});
+
+// ── MISC ──
+
+// Get flags
+app.get("/api/flags", (req, res) => {
+    
+    try {
+        
+        const flagsDir = path.join(__dirname, "public", "images", "flags");
+        const files = fs.readdirSync(flagsDir);
+ 
+        const countries = files
+            .filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f))
+            .map(f => f.replace(/\.(png|jpg|jpeg|webp)$/i, "").toUpperCase())
+            .sort();
+ 
+        res.json({ ok: true, countries });
+    
+    } catch (err) {
+        
+        console.error("Failed to list flags:", err);
+        
+        res.status(500).json({ ok: false, error: "Failed to list flags" });
+    }
+});
+
+// Get patterns
+app.get("/api/patterns", async (req, res) => {
+    
+    try {
+
+        const response = await fetch(`${HANDLESPORT_BACKEND_URL}/scoring/getPatterns`);
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            
+            return res.status(response.status).json(data);
+        }
+
+        return res.json(data);
+
+    } catch (err) {
+        
+        console.error(err);
+
+        return res.status(500).json({ok: false, error: "Failed to fetch patterns"});
+    }
+});
+
+// ── SESSION LOGGING ──
+
+// Starts a new logging session (call this once, e.g. right after /api/login/admin succeeds). Returns the generated session id.
+app.post("/api/log/start", (req, res) => {
+    
+    try {
+        
+        const { ring } = req.body;
+        const { sessionId, fileName } = startLogSession(crypto, ring);
+
+        res.json({ ok: true, sessionId, fileName });
+    
+    } catch (err) {
+        
+        console.error("Failed to start log session:", err);
+        
+        res.status(500).json({ ok: false, error: "Failed to start log session" });
+    }
+});
+
+// Appends a generic event to the current session log. Body: { event: "referee_score", ...anyOtherFields }
+app.post("/api/log/event", (req, res) => {
+    
+    try {
+        
+        if (!hasActiveLogSession()) {
+            return res.status(400).json({ ok: false, error: "No active logging session — call /api/log/start first" });
+        }
+        
+        if (!req.body || !req.body.event) {
+            return res.status(400).json({ ok: false, error: "Missing 'event' field" });
+        }
+ 
+        appendLogEntry(req.body);
+        
+        res.json({ ok: true });
+    
+    } catch (err) {
+        
+        console.error("Failed to write log event:", err);
+        
+        res.status(500).json({ ok: false, error: "Failed to write log event" });
+    }
+});
+
+// Lists all session log files available on this machine (most recent first).
+app.get("/api/log/list", (req, res) => {
+    
+    try {
+        
+        const files = listLogFiles();
+ 
+        res.json({ ok: true, files });
+    
+    } catch (err) {
+        
+        console.error("Failed to list logs:", err);
+        
+        res.status(500).json({ ok: false, error: "Failed to list logs" });
+    }
+});
+
+// Downloads a specific session log file by name.
+app.get("/api/log/download/:fileName", (req, res) => {
+    
+    const fileName = req.params.fileName;
+ 
+    // Basic safety: only allow file names matching our own generated pattern.
+    if (!isValidLogFileName(fileName)) {
+        
+        return res.status(400).json({ ok: false, error: "Invalid file name" });
+    }
+ 
+    if (!logFileExists(fileName)) {
+        
+        return res.status(404).json({ ok: false, error: "Log file not found" });
+    }
+ 
+    res.download(getLogFilePath(fileName), fileName);
+});
+
+// ── PAGES ──
+
+app.get("/tablet/:id", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "tablet.html"));
+});
+
+app.get("/admin", (req, res) => {
+    const specialty = req.query.specialty.toLowerCase();
+    const fileName = `admin-${specialty}.html`;
+    res.sendFile(path.join(__dirname, "public", fileName));
+});
+
+app.get("/display", (req, res) => {
+    const specialty = req.query.specialty.toLowerCase();
+    const fileName = `display-${specialty}.html`;
+    res.sendFile(path.join(__dirname, "public", fileName));
+});
+
+app.get("/intro", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "intro.html"));
+});
+
+// ── SERVER START ──
+
+export async function startServer() {
+    
     app.listen(PORT, "0.0.0.0", () => {
         console.log(`Server started on http://localhost:${PORT}`);
         console.log(`IP local: ${LOCAL_IP}`);        
     });
 }
+
+// ── HELPERS ──
 
 // Admin broadcast
 function broadcastAdmin(data) {
@@ -273,6 +671,16 @@ function getLocalIP() {
     }
 }
 
-app.get("/tablet/:id", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "tablet.html"));
-});
+function generateJwt(event, ring) {
+    
+    const key = crypto.createHash('md5').update(API_KEY).digest('hex');
+
+    const payload = {
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 86400,
+        event: event,
+        ring: ring
+    };
+
+    return jwt.sign(payload, key, { algorithm: 'HS256' });
+}
