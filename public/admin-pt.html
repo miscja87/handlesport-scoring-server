@@ -281,6 +281,23 @@
         .state-text.stop { color: #e53e3e; }
         .state-text.play { color: #38a169; }
 
+        /* ── LEVEL 0 TOGGLE (sits under the blue score, in line with
+           RESET ALL / START) ── */
+        .level0-cell {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+            font-size: 13px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            color: #8a93a8;
+            transition: color 0.15s;
+        }
+        .level0-cell.active {
+            color: #38a169;
+        }
+
         @media (max-width: 900px) {
             .score-grid-row {
                 grid-template-columns: repeat(2, 1fr);
@@ -367,14 +384,23 @@
     </div>
 
     <!-- CONTROLS ROW -->
-    <div class="score-grid-row">
-        <div style="grid-column: 5 / 7; display: flex; flex-direction: column; gap: 6px;">
-            <button class="action-btn green" id="resetAllBtn" style="font-size: 11px; padding: 8px 4px;">
-                <span class="icon">↻</span> RESET ALL
-            </button>
-            <button class="action-btn green" id="startStopBtn" style="font-size: 11px; padding: 8px 4px;">
-                <span class="icon" id="startStopIcon">▶</span> <span id="startStopLabel">START</span>
-            </button>
+    <div class="score-grid-row" style="grid-template-rows: auto auto; row-gap: 6px;">
+        <button class="action-btn green" id="resetAllBtn" style="grid-column: 5 / 7; grid-row: 1; font-size: 11px; padding: 8px 4px;">
+            <span class="icon">↻</span> RESET ALL
+        </button>
+        <button class="action-btn green" id="startStopBtn" style="grid-column: 5 / 7; grid-row: 2; font-size: 11px; padding: 8px 4px;">
+            <span class="icon" id="startStopIcon">▶</span> <span id="startStopLabel">START</span>
+        </button>
+
+        <!-- LEVEL 0 TOGGLE: while on, any referee button press forces that
+             side's score straight to 0 (severe penalty override). Shares
+             RESET ALL's grid row so it's vertically centered on it exactly. -->
+        <div class="level0-cell" id="level0Row" style="grid-column: 7 / 11; grid-row: 1;">
+            <span>LEVEL 0</span>
+            <label class="referee-toggle level0-toggle">
+                <input type="checkbox" id="level0Toggle">
+                <span class="referee-toggle-slider"></span>
+            </label>
         </div>
     </div>
 
@@ -680,6 +706,47 @@
         }
     }
 
+    // ── LEVEL 0 ──
+    // Global override: while on, the server forces whichever side a referee
+    // just scored straight to 0, no matter which button they pressed —
+    // for penalties severe enough to zero a competitor's score outright.
+    const level0Row = document.getElementById("level0Row");
+    const level0Toggle = document.getElementById("level0Toggle");
+
+    function applyLevel0UI(enabled) {
+        level0Toggle.checked = enabled;
+        level0Row.classList.toggle("active", enabled);
+    }
+
+    async function syncLevel0State() {
+        try {
+            const res = await fetch(`${SharedAdmin.apiBase()}/api/match/level0`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            applyLevel0UI(!!data.enabled);
+        } catch (err) {
+            console.error("Level 0 status fetch error:", err);
+        }
+    }
+
+    level0Toggle.addEventListener("change", async (e) => {
+        const enabled = e.target.checked;
+        applyLevel0UI(enabled);
+        try {
+            const res = await fetch(`${SharedAdmin.apiBase()}/api/match/level0`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled })
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            SharedAdmin.showToast(enabled ? "LEVEL 0 enabled — any button press zeroes that score" : "LEVEL 0 disabled");
+        } catch (err) {
+            console.error("Level 0 update error:", err);
+            SharedAdmin.showToast("Error updating LEVEL 0");
+            applyLevel0UI(!enabled);
+        }
+    });
+
     startStopBtn.addEventListener("click", () => {
         const isStarting = !isRunning;
         setState(!isRunning);
@@ -741,6 +808,7 @@
 
         onInitComplete: () => {
             injectPatternRows();
+            syncLevel0State();
         },
 
         // Called at the end of SharedAdmin.applyMatch() — PT doesn't reset

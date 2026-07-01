@@ -44,6 +44,7 @@ let ring = null;
 let specialtyCode = null;
 let serverId = null;
 let jwtToken = null;
+let level0Enabled = false; // PT "Level 0": while on, any referee button press forces that side's score straight to 0
 
 // ── SSE STREAMS ──
 
@@ -179,22 +180,37 @@ app.post("/api/score/referee/:id", (req, res) => {
     const currentScores = getScores();
     const referee = parseInt(req.params.id);
     const { score, action } = req.body;
-    
+
     if (!currentScores[referee]) {
         return res.status(404).json({ error: `Referee ${referee} not found` });
     }
 
+    let red = parseFloat(score.red);
+    let blue = parseFloat(score.blue);
+    let forcedToZero = false;
+
+    // LEVEL 0: while active, any button press forces the side that just
+    // changed straight to 0 instead of applying its normal point value —
+    // for penalties severe enough to zero a competitor's score outright.
+    if (level0Enabled && action === ACTIONS.UPDATE_SCORE) {
+        const previous = currentScores[referee].score;
+        if (red !== parseFloat(previous.red)) { red = 0; forcedToZero = true; }
+        if (blue !== parseFloat(previous.blue)) { blue = 0; forcedToZero = true; }
+    }
+
     // update score in memory
-    const updated = updateScore(referee, action, parseFloat(score.red), parseFloat(score.blue));
+    const updated = updateScore(referee, action, red, blue);
     console.log(`Updated score for referee ${referee}:`, updated);
-    
+
     // send score to admin
     broadcastAdmin({ referee: referee, score: updated.score, action: updated.action });
-    
-    // send score to clients only if reset_score
-    if (updated.action === ACTIONS.RESET_SCORE) {
-        
-        broadcastClients({ referee: referee, score: updated.score, action: updated.action });
+
+    // send score to clients if reset_score, or if Level 0 just overrode the
+    // value — the referee's own tablet computed a different score locally
+    // before sending it, so it needs correcting back to the forced value.
+    if (updated.action === ACTIONS.RESET_SCORE || forcedToZero) {
+
+        broadcastClients({ referee: referee, score: updated.score, action: ACTIONS.RESET_SCORE });
     }
 
     // save score in Firestore
@@ -284,6 +300,25 @@ app.post("/api/match/status", (req, res) => {
     broadcastClients({ action: ACTIONS.UPDATE_STATE, state: state });
     
     res.json({ ok: true });
+});
+
+// Get Level 0 status
+app.get("/api/match/level0", (req, res) => {
+
+    validate(res, event, ring);
+
+    res.json({ enabled: level0Enabled });
+});
+
+// Toggle Level 0 (any referee button press forces that side's score to 0)
+app.post("/api/match/level0", (req, res) => {
+
+    validate(res, event, ring);
+
+    level0Enabled = !!req.body.enabled;
+    console.log("Level 0 mode:", level0Enabled);
+
+    res.json({ ok: true, enabled: level0Enabled });
 });
 
 // Update match details
