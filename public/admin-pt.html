@@ -586,11 +586,23 @@
 
     let isRunning = false;
 
+    // Tracks, per pattern slot, whether the referee scores are allowed to be
+    // shown on the display yet — flips to true only once that pattern's
+    // performance has actually finished (STOP after running), so the
+    // audience never sees marks trickling in mid-performance.
+    let patternRevealed = { 1: false, 2: false };
+
     // Simple START/STOP toggle — no countdown, just flips the STATE indicator
     // and notifies the server so the match status (play/stop) stays in sync.
     function setState(running, skipAdvance = false) {
         const wasRunning = isRunning;
         isRunning = running;
+
+        if (wasRunning && !running && !skipAdvance) {
+            const finishedPattern = parseInt(document.getElementById("roundIndicator").textContent) || 1;
+            patternRevealed[finishedPattern] = true;
+        }
+
         if (running) {
             stateDot.classList.add("play");
             stateText.classList.remove("stop");
@@ -714,6 +726,7 @@
             roundTotal: document.getElementById("roundTotal")?.textContent,
             isRunning: isRunning,
             patternReferees: patternReferees,
+            patternRevealed: { ...patternRevealed },
 
             score: {
                 red: parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0,
@@ -1183,6 +1196,7 @@
 
         document.getElementById("roundIndicator").textContent = "1";
         patternNameDisplay.textContent = "OPTIONAL";
+        patternRevealed = { 1: false, 2: false };
 
         setState(false, true);
 

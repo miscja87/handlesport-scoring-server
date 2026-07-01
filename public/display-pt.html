@@ -305,31 +305,53 @@
     }
 
     // Applies the referees array to whichever pattern row is currently
-    // active (payload.roundIndicator / roundTotal tell us 1 or 2), coloring
-    // the leading side per referee the same way SP does.
-    function applyPtRefereeBoxes(referees, patternNumber) {
+    // active (payload.roundIndicator / roundTotal tell us 1 or 2). The boxes
+    // themselves always stay visible, but while the performance is still in
+    // progress (revealed === false) they're held at the neutral start score
+    // with no color — real scores and coloring only land once the pattern
+    // has finished, and only on the side each referee scored *higher*, so
+    // the audience can read at a glance how many referees are leaning red
+    // vs blue (a tie leaves both boxes neutral).
+    const MAX_INTENSITY = 1.6; // fixed brightness/saturation boost for the winning box — no longer scaled by score margin
+
+    function applyPtRefereeBoxes(referees, patternNumber, revealed) {
         const prefix = patternNumber === 2 ? "refP2_" : "refP1_";
 
         referees.forEach((ref, idx) => {
             const i = idx + 1;
             const redBox = document.getElementById(`${prefix}${i}red`);
             const blueBox = document.getElementById(`${prefix}${i}blue`);
-            const isActive = !!ref?.active;
 
+            if (!revealed) {
+                if (redBox) {
+                    redBox.textContent = 10;
+                    redBox.classList.remove("red-active");
+                    redBox.style.setProperty("--intensity", 1);
+                }
+                if (blueBox) {
+                    blueBox.textContent = 10;
+                    blueBox.classList.remove("blue-active");
+                    blueBox.style.setProperty("--intensity", 1);
+                }
+                return;
+            }
+
+            const isActive = !!ref?.active;
             const redScore = parseFloat(ref?.score?.red) || 0;
             const blueScore = parseFloat(ref?.score?.blue) || 0;
-            const margin = Math.abs(redScore - blueScore);
-            const intensity = 1 + Math.min(margin, 8) / 8 * 0.6;
+
+            const redWins = isActive && redScore > blueScore;
+            const blueWins = isActive && blueScore > redScore;
 
             if (redBox) {
                 redBox.textContent = redScore;
-                redBox.classList.toggle("red-active", isActive);
-                redBox.style.setProperty("--intensity", (isActive && redScore > blueScore) ? intensity : 1);
+                redBox.classList.toggle("red-active", redWins);
+                redBox.style.setProperty("--intensity", redWins ? MAX_INTENSITY : 1);
             }
             if (blueBox) {
                 blueBox.textContent = blueScore;
-                blueBox.classList.toggle("blue-active", isActive);
-                blueBox.style.setProperty("--intensity", (isActive && blueScore > redScore) ? intensity : 1);
+                blueBox.classList.toggle("blue-active", blueWins);
+                blueBox.style.setProperty("--intensity", blueWins ? MAX_INTENSITY : 1);
             }
         });
     }
@@ -451,8 +473,9 @@
         }
 
         if (payload.patternReferees) {
-            applyPtRefereeBoxes(payload.patternReferees[1], 1);
-            applyPtRefereeBoxes(payload.patternReferees[2], 2);
+            const revealed = payload.patternRevealed || {};
+            applyPtRefereeBoxes(payload.patternReferees[1], 1, !!revealed[1]);
+            applyPtRefereeBoxes(payload.patternReferees[2], 2, !!revealed[2]);
         }
     }
 
