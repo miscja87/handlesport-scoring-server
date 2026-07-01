@@ -142,6 +142,13 @@
         .winner-btn.red { background: #cc0000; }
         .winner-btn.blue { background: #1a6fa8; }
         .winner-btn.suggested { opacity: 1; box-shadow: 0 0 0 2px white inset; }
+        .winner-tie-row {
+            padding: 0 20px 12px;
+        }
+        .winner-btn.tie {
+            width: 100%;
+            background: #7a6a2a;
+        }
         .winner-cancel-row {
             padding: 0 20px 20px;
         }
@@ -652,6 +659,9 @@
         <div class="winner-btn-row">
             <button class="winner-btn red" id="winnerBtnRed" onclick="confirmWinner('red')">RED WINS</button>
             <button class="winner-btn blue" id="winnerBtnBlue" onclick="confirmWinner('blue')">BLUE WINS</button>
+        </div>
+        <div class="winner-tie-row">
+            <button class="winner-btn tie" id="winnerBtnTie" onclick="confirmTie()">TIE</button>
         </div>
         <div class="winner-cancel-row">
             <button class="winner-cancel-btn" onclick="closeWinnerModal()">Cancel — review scores first</button>
@@ -1363,6 +1373,7 @@
         const messageEl = document.getElementById("winnerModalMessage");
         const redBtn = document.getElementById("winnerBtnRed");
         const blueBtn = document.getElementById("winnerBtnBlue");
+        const tieBtn = document.getElementById("winnerBtnTie");
 
         const intro = matchEndedNaturally
             ? "All patterns have been completed."
@@ -1371,9 +1382,11 @@
         scoreEl.innerHTML = `<span class="red-text">${redScore}</span> — <span class="blue-text">${blueScore}</span>`;
         redBtn.classList.remove("suggested");
         blueBtn.classList.remove("suggested");
+        tieBtn.classList.remove("suggested");
 
         if (redScore === blueScore) {
-            messageEl.textContent = `${intro} The result is currently a tie — please select the winner manually.`;
+            messageEl.textContent = `${intro} The result is currently a tie — confirm TIE below, or select a winner manually.`;
+            tieBtn.classList.add("suggested");
         } else if (redScore > blueScore) {
             messageEl.textContent = `${intro} RED is currently ahead — confirm the winner below.`;
             redBtn.classList.add("suggested");
@@ -1406,9 +1419,25 @@
         notifyMatchUpdate(color);
     }
 
+    // TIE: same flow as confirmWinner, but no winner/loser — sends tie: "Y"
+    // to the backend instead. No display announcement, since there's no
+    // winner to celebrate with the WINS overlay.
+    function confirmTie() {
+        closeWinnerModal();
+        SharedAdmin.showToast("Match declared a TIE");
+
+        const scoreRed = parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0;
+        const scoreBlue = parseInt(document.getElementById("mainScoreRight")?.textContent) || 0;
+
+        SharedAdmin.logEvent("tie_confirmed", { score: { red: scoreRed, blue: scoreBlue } });
+
+        notifyMatchUpdate(null, true);
+    }
+
     // Sends the match result to the backend via /api/match/update — only
-    // when a real category/match was loaded from the API (not a manual edit).
-    async function notifyMatchUpdate(color) {
+    // when a real category/match was loaded from the API (not a manual
+    // edit). isTie sends tie: "Y" and omits id_winner/id_loser entirely.
+    async function notifyMatchUpdate(color, isTie = false) {
         const categoryId = document.getElementById("categoryDisplay")?.dataset.categoryId;
         const currentMatches = SharedAdmin.getCurrentMatches();
         const currentMatchIndex = SharedAdmin.getCurrentMatchIndex();
@@ -1422,8 +1451,8 @@
         const scoreRed = parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0;
         const scoreBlue = parseInt(document.getElementById("mainScoreRight")?.textContent) || 0;
 
-        const idWinner = color === "red" ? match.left_player_id : match.right_player_id;
-        const idLoser = color === "red" ? match.right_player_id : match.left_player_id;
+        const idWinner = isTie ? undefined : (color === "red" ? match.left_player_id : match.right_player_id);
+        const idLoser = isTie ? undefined : (color === "red" ? match.right_player_id : match.left_player_id);
 
         try {
             const res = await fetch(`${SharedAdmin.apiBase()}/api/match/update`, {
@@ -1438,7 +1467,7 @@
                     id_loser: idLoser,
                     left_score: scoreRed,
                     right_score: scoreBlue,
-                    tie: "N"
+                    tie: isTie ? "Y" : "N"
                 })
             });
 
