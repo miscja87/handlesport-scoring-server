@@ -123,6 +123,18 @@
             text-shadow: 0 4px 16px rgba(0,0,0,0.5);
         }
 
+        /* ── TRAD.SPARRING TIMER ── */
+        .trad-timer-display {
+            color: white;
+            font-size: 15vh;
+            font-weight: 900;
+            letter-spacing: 2px;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            text-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            margin-top: -0.8vh;
+        }
+
         /* ── PLAY STATE INDICATOR BAR ── */
         .play-bar-track {
             width: 70%;
@@ -210,6 +222,7 @@
             <div class="play-bar-track">
                 <div class="play-bar-fill" id="playBarFill"></div>
             </div>
+            <div class="trad-timer-display hidden" id="tradTimerDisplay">00:00</div>
         </div>
 
         <div class="score-side-group red-side-group">
@@ -399,9 +412,9 @@
         textEl.classList.add("entering");
 
         patternStartTimeout = setTimeout(() => {
-            console.log("[pattern-anim] 3s timeout fired, calling flyTextToTarget");
+            console.log("[pattern-anim] 5s timeout fired, calling flyTextToTarget");
             flyTextToTarget(textEl, targetEl, overlay);
-        }, 3000);
+        }, 5000);
     }
 
     function flyTextToTarget(textEl, targetEl, overlay) {
@@ -476,6 +489,16 @@
             const revealed = payload.patternRevealed || {};
             applyPtRefereeBoxes(payload.patternReferees[1], 1, !!revealed[1]);
             applyPtRefereeBoxes(payload.patternReferees[2], 2, !!revealed[2]);
+        }
+
+        if (payload.tradSparringEnabled !== undefined) {
+            document.getElementById("tradTimerDisplay").classList.toggle("hidden", !payload.tradSparringEnabled);
+        }
+
+        if (payload.tradTimerSeconds !== undefined) {
+            const m = Math.floor(payload.tradTimerSeconds / 60).toString().padStart(2, "0");
+            const s = Math.floor(payload.tradTimerSeconds % 60).toString().padStart(2, "0");
+            document.getElementById("tradTimerDisplay").textContent = `${m}:${s}`;
         }
     }
 

@@ -281,12 +281,11 @@
         .state-text.stop { color: #e53e3e; }
         .state-text.play { color: #38a169; }
 
-        /* ── LEVEL 0 TOGGLE (sits under the blue score, in line with
-           RESET ALL / START) ── */
-        .level0-cell {
+        /* ── LEVEL 0 (left of RESET ALL) / TRAD.SPARRING (right of RESET
+           ALL) TOGGLES, aligned to RESET ALL's row) ── */
+        .level0-cell, .tradsparring-cell {
             display: flex;
             align-items: center;
-            justify-content: flex-start;
             gap: 10px;
             font-size: 13px;
             font-weight: 900;
@@ -294,9 +293,44 @@
             color: #8a93a8;
             transition: color 0.15s;
         }
-        .level0-cell.active {
+        .level0-cell { justify-content: flex-end; }
+        .tradsparring-cell { justify-content: flex-start; }
+        .level0-cell.active, .tradsparring-cell.active {
             color: #38a169;
         }
+
+        /* ── TRAD.SPARRING TIMER (compact — sits under the TRAD.SPARRING
+           toggle, on START's grid row) ── */
+        .trad-timer-cell {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 8px;
+        }
+        .trad-timer-display {
+            font-size: 16px;
+            font-weight: 900;
+            color: white;
+            font-variant-numeric: tabular-nums;
+            min-width: 44px;
+        }
+        .trad-timer-mini-btn {
+            border: none;
+            background: #2a7a2a;
+            color: white;
+            font-size: 13px;
+            font-weight: 700;
+            width: 26px;
+            height: 26px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .trad-timer-mini-btn:active { filter: brightness(1.2); }
+        .trad-timer-mini-btn.reset { background: #7a2a2a; }
 
         @media (max-width: 900px) {
             .score-grid-row {
@@ -385,6 +419,17 @@
 
     <!-- CONTROLS ROW -->
     <div class="score-grid-row" style="grid-template-rows: auto auto; row-gap: 6px;">
+        <!-- LEVEL 0 TOGGLE: while on, any referee button press forces that
+             side's score straight to 0 (severe penalty override). Shares
+             RESET ALL's grid row so it's vertically centered on it exactly. -->
+        <div class="level0-cell" id="level0Row" style="grid-column: 1 / 5; grid-row: 1;">
+            <span>LEVEL 0</span>
+            <label class="referee-toggle level0-toggle">
+                <input type="checkbox" id="level0Toggle">
+                <span class="referee-toggle-slider"></span>
+            </label>
+        </div>
+
         <button class="action-btn green" id="resetAllBtn" style="grid-column: 5 / 7; grid-row: 1; font-size: 11px; padding: 8px 4px;">
             <span class="icon">↻</span> RESET ALL
         </button>
@@ -392,15 +437,26 @@
             <span class="icon" id="startStopIcon">▶</span> <span id="startStopLabel">START</span>
         </button>
 
-        <!-- LEVEL 0 TOGGLE: while on, any referee button press forces that
-             side's score straight to 0 (severe penalty override). Shares
-             RESET ALL's grid row so it's vertically centered on it exactly. -->
-        <div class="level0-cell" id="level0Row" style="grid-column: 7 / 11; grid-row: 1;">
-            <span>LEVEL 0</span>
-            <label class="referee-toggle level0-toggle">
-                <input type="checkbox" id="level0Toggle">
+        <!-- TRAD.SPARRING TOGGLE: enables Traditional Sparring mode; while
+             on, the pattern name box shows "TRAD.SPARRING" instead of the
+             "OPTIONAL" placeholder. Shares RESET ALL's grid row. -->
+        <div class="tradsparring-cell" id="tradSparringRow" style="grid-column: 7 / 11; grid-row: 1;">
+            <span>TRAD.SPARRING</span>
+            <label class="referee-toggle">
+                <input type="checkbox" id="tradSparringToggle">
                 <span class="referee-toggle-slider"></span>
             </label>
+        </div>
+
+        <!-- TRAD.SPARRING TIMER: independent stopwatch, counts up from 0.
+             Started/stopped/reset manually — never tied to the main START
+             button. Sits under the TRAD.SPARRING toggle, on START's row. -->
+        <div class="trad-timer-cell hidden" id="tradTimerRow" style="grid-column: 7 / 11; grid-row: 2;">
+            <span class="trad-timer-display" id="tradTimerDisplay">00:00</span>
+            <button class="trad-timer-mini-btn" id="tradTimerStartStopBtn" title="Start">
+                <span id="tradTimerStartStopIcon">▶</span>
+            </button>
+            <button class="trad-timer-mini-btn reset" id="tradTimerResetBtn" title="Reset">↻</button>
         </div>
     </div>
 
@@ -576,6 +632,9 @@
         <div class="error-modal-footer hidden" id="infoModalFooter">
             <button id="infoModalBtn" onclick="SharedAdmin.closeInfoModal()">OK</button>
         </div>
+        <div class="winner-cancel-row hidden" id="infoModalCancelRow">
+            <button class="winner-cancel-btn" id="infoModalCancelBtn" onclick="SharedAdmin.closeInfoModal()">Cancel</button>
+        </div>
     </div>
 </div>
 
@@ -677,7 +736,7 @@
         resetAllRefereeScoresTo10();
 
         document.getElementById("roundIndicator").textContent = currentPattern + 1;
-        patternNameDisplay.textContent = "OPTIONAL";
+        patternNameDisplay.textContent = patternPlaceholderText();
         pushDisplayUpdatePT();
         clearPatternDisplay();
         SharedAdmin.showToast(`Moved to PATTERN ${currentPattern + 1}`);
@@ -747,6 +806,125 @@
         }
     });
 
+    // ── TRAD.SPARRING ──
+    // Toggles Traditional Sparring mode. For now this only swaps the
+    // pattern name placeholder ("OPTIONAL" <-> "TRAD.SPARRING"); further
+    // TRAD.SPARRING behavior lands separately.
+    const tradSparringRow = document.getElementById("tradSparringRow");
+    const tradSparringToggle = document.getElementById("tradSparringToggle");
+    let tradSparringEnabled = false;
+
+    function patternPlaceholderText() {
+        return tradSparringEnabled ? "TRAD.SPARRING" : "OPTIONAL";
+    }
+
+    function applyTradSparring(enabled) {
+        tradSparringEnabled = enabled;
+        tradSparringToggle.checked = enabled;
+        tradSparringRow.classList.toggle("active", enabled);
+        tradTimerRow.classList.toggle("hidden", !enabled);
+
+        // Only swap the box if it's currently showing a placeholder — never
+        // clobber a pattern name that's already been shuffled in.
+        const current = patternNameDisplay.textContent;
+        if (current === "OPTIONAL" || current === "TRAD.SPARRING") {
+            patternNameDisplay.textContent = patternPlaceholderText();
+        }
+
+        // Leaving the mode always resets the stopwatch — a fresh start next
+        // time it's enabled, rather than resuming a stale elapsed time.
+        if (!enabled) {
+            resetTradTimer();
+        }
+
+        pushDisplayUpdatePT();
+        SharedAdmin.showToast(enabled ? "TRADITIONAL SPARRING enabled" : "TRADITIONAL SPARRING disabled");
+    }
+
+    // ── TRAD.SPARRING TIMER ──
+    // Independent stopwatch (counts up from 0). Never starts/stops with the
+    // main START/STOP button — only these controls drive it.
+    const tradTimerRow = document.getElementById("tradTimerRow");
+    const tradTimerDisplay = document.getElementById("tradTimerDisplay");
+    const tradTimerStartStopBtn = document.getElementById("tradTimerStartStopBtn");
+    const tradTimerStartStopIcon = document.getElementById("tradTimerStartStopIcon");
+    const tradTimerResetBtn = document.getElementById("tradTimerResetBtn");
+
+    let tradTimerSeconds = 0;
+    let tradTimerRunning = false;
+    let tradTimerInterval = null;
+
+    function formatTradTimer(totalSeconds) {
+        const m = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
+        const s = Math.floor(totalSeconds % 60).toString().padStart(2, "0");
+        return `${m}:${s}`;
+    }
+
+    function renderTradTimer() {
+        tradTimerDisplay.textContent = formatTradTimer(tradTimerSeconds);
+        pushDisplayUpdatePT();
+    }
+
+    function tradTimerTick() {
+        tradTimerSeconds += 1;
+        renderTradTimer();
+    }
+
+    function startTradTimer() {
+        if (tradTimerRunning) return;
+        tradTimerRunning = true;
+        tradTimerStartStopIcon.textContent = "❙❙";
+        tradTimerStartStopBtn.title = "Stop";
+        tradTimerInterval = setInterval(tradTimerTick, 1000);
+        renderTradTimer();
+    }
+
+    function stopTradTimer() {
+        if (!tradTimerRunning) return;
+        tradTimerRunning = false;
+        tradTimerStartStopIcon.textContent = "▶";
+        tradTimerStartStopBtn.title = "Start";
+        clearInterval(tradTimerInterval);
+        tradTimerInterval = null;
+        renderTradTimer();
+    }
+
+    function resetTradTimer() {
+        stopTradTimer();
+        tradTimerSeconds = 0;
+        renderTradTimer();
+    }
+
+    tradTimerStartStopBtn.addEventListener("click", () => {
+        if (tradTimerRunning) {
+            stopTradTimer();
+        } else {
+            startTradTimer();
+        }
+    });
+
+    tradTimerResetBtn.addEventListener("click", () => {
+        resetTradTimer();
+    });
+
+    tradSparringToggle.addEventListener("change", (e) => {
+        if (!e.target.checked) {
+            applyTradSparring(false);
+            return;
+        }
+
+        // Enabling needs confirmation — revert the checkbox until the admin
+        // confirms; cancelling (backdrop click) just leaves it off.
+        tradSparringToggle.checked = false;
+        SharedAdmin.showInfoModal(
+            "Enable TRADITIONAL SPARRING?",
+            "Enable TRADITIONAL SPARRING mode?",
+            "ENABLE",
+            () => applyTradSparring(true),
+            { success: true, cancelText: "Cancel" }
+        );
+    });
+
     startStopBtn.addEventListener("click", () => {
         const isStarting = !isRunning;
         setState(!isRunning);
@@ -794,6 +972,9 @@
             isRunning: isRunning,
             patternReferees: patternReferees,
             patternRevealed: { ...patternRevealed },
+            tradSparringEnabled: tradSparringEnabled,
+            tradTimerSeconds: tradTimerSeconds,
+            tradTimerRunning: tradTimerRunning,
 
             score: {
                 red: parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0,
@@ -1297,7 +1478,7 @@
         SharedAdmin.closeInfoModal();
 
         document.getElementById("roundIndicator").textContent = "1";
-        patternNameDisplay.textContent = "OPTIONAL";
+        patternNameDisplay.textContent = patternPlaceholderText();
         patternRevealed = { 1: false, 2: false };
 
         setState(false, true);
@@ -1310,6 +1491,7 @@
         resetPatternScores();
         recalculateMainScorePT();
         clearPatternDisplay();
+        resetTradTimer();
     });
 
     // Resets every referee's live (current pattern) score back to 10/10 and

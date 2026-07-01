@@ -136,6 +136,9 @@
     }
 
     // ── INFO MODAL (generic confirmations / transitions) ──
+    // options.cancelText: pass to show an explicit Cancel button alongside
+    // the confirm button (otherwise the modal is only dismissible via the
+    // backdrop, as before). options.onCancel fires if provided.
     function showInfoModal(title, message, buttonText = null, onConfirm = null, options = {}) {
         document.getElementById("infoModalTitle").textContent = title;
         document.getElementById("infoModalMessage").textContent = message;
@@ -154,6 +157,19 @@
             };
         } else {
             footer.classList.add("hidden");
+        }
+
+        const cancelRow = document.getElementById("infoModalCancelRow");
+        const cancelBtn = document.getElementById("infoModalCancelBtn");
+        if (options.cancelText) {
+            cancelRow.classList.remove("hidden");
+            cancelBtn.textContent = options.cancelText;
+            cancelBtn.onclick = () => {
+                closeInfoModal();
+                if (options.onCancel) options.onCancel();
+            };
+        } else {
+            cancelRow.classList.add("hidden");
         }
 
         document.getElementById("infoModalOverlay").classList.remove("hidden");
