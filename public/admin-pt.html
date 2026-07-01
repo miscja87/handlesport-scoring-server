@@ -740,6 +740,11 @@
         pushDisplayUpdatePT();
         clearPatternDisplay();
         SharedAdmin.showToast(`Moved to PATTERN ${currentPattern + 1}`);
+
+        // Auto-shuffle the next pattern so the admin doesn't have to click
+        // SHUFFLE manually — they can still re-shuffle afterward for a
+        // different one if they want (this just picks the default).
+        shufflePattern();
     }
 
     // Tells the display window to clear the pattern name box back to a

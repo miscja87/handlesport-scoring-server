@@ -239,6 +239,7 @@
         <div class="referee-labels" id="refereeLabels"></div>
         <div class="referee-boxes" id="refereeBoxesP1"></div>
         <div class="referee-boxes" id="refereeBoxesP2" style="margin-top: 0.5vh;"></div>
+        <div class="referee-boxes" id="refereeBoxesTotal" style="margin-top: 0.5vh;"></div>
     </div>
 
     <!-- NEXT MATCHES -->
@@ -287,22 +288,25 @@
         setTimeout(() => el.classList.remove("bump"), 500);
     }
 
-    // ── PT REFEREE BOXES: 2 rows per referee (Pattern 1 / Pattern 2) ──
+    // ── PT REFEREE BOXES: 3 rows per referee (Pattern 1 / Pattern 2 / Total) ──
     const PT_REFEREE_COUNT = 5;
 
     function buildPtRefereeBoxes() {
         const labels = document.getElementById("refereeLabels");
         const rowP1 = document.getElementById("refereeBoxesP1");
         const rowP2 = document.getElementById("refereeBoxesP2");
+        const rowTotal = document.getElementById("refereeBoxesTotal");
 
         const colStyle = `repeat(${PT_REFEREE_COUNT * 2}, 1fr)`;
         rowP1.style.gridTemplateColumns = colStyle;
         rowP2.style.gridTemplateColumns = colStyle;
+        rowTotal.style.gridTemplateColumns = colStyle;
         labels.style.gridTemplateColumns = `repeat(${PT_REFEREE_COUNT}, 1fr)`;
 
         labels.innerHTML = "";
         rowP1.innerHTML = "";
         rowP2.innerHTML = "";
+        rowTotal.innerHTML = "";
 
         for (let i = 1; i <= PT_REFEREE_COUNT; i++) {
             labels.insertAdjacentHTML("beforeend", `<span>REF. ${i}</span>`);
@@ -314,22 +318,23 @@
                 <div class="referee-box" id="refP2_${i}blue">10</div>
                 <div class="referee-box" id="refP2_${i}red">10</div>
             `);
+            rowTotal.insertAdjacentHTML("beforeend", `
+                <div class="referee-box" id="refTotal_${i}blue">20</div>
+                <div class="referee-box" id="refTotal_${i}red">20</div>
+            `);
         }
     }
 
-    // Applies the referees array to whichever pattern row is currently
-    // active (payload.roundIndicator / roundTotal tell us 1 or 2). The boxes
-    // themselves always stay visible, but while the performance is still in
-    // progress (revealed === false) they're held at the neutral start score
-    // with no color — real scores and coloring only land once the pattern
-    // has finished, and only on the side each referee scored *higher*, so
-    // the audience can read at a glance how many referees are leaning red
-    // vs blue (a tie leaves both boxes neutral).
+    // Applies a referees array (Pattern 1, Pattern 2, or the combined Total)
+    // to the row matching the given box-id prefix. The boxes themselves
+    // always stay visible, but while not yet revealed they're held at the
+    // neutral start score with no color — real scores and coloring only
+    // land once revealed, and only on the side each referee scored
+    // *higher*, so the audience can read at a glance how many referees are
+    // leaning red vs blue (a tie leaves both boxes neutral).
     const MAX_INTENSITY = 1.6; // fixed brightness/saturation boost for the winning box — no longer scaled by score margin
 
-    function applyPtRefereeBoxes(referees, patternNumber, revealed) {
-        const prefix = patternNumber === 2 ? "refP2_" : "refP1_";
-
+    function applyPtRefereeBoxes(referees, prefix, revealed, neutralScore = 10) {
         referees.forEach((ref, idx) => {
             const i = idx + 1;
             const redBox = document.getElementById(`${prefix}${i}red`);
@@ -337,12 +342,12 @@
 
             if (!revealed) {
                 if (redBox) {
-                    redBox.textContent = 10;
+                    redBox.textContent = neutralScore;
                     redBox.classList.remove("red-active");
                     redBox.style.setProperty("--intensity", 1);
                 }
                 if (blueBox) {
-                    blueBox.textContent = 10;
+                    blueBox.textContent = neutralScore;
                     blueBox.classList.remove("blue-active");
                     blueBox.style.setProperty("--intensity", 1);
                 }
@@ -486,9 +491,34 @@
         }
 
         if (payload.patternReferees) {
+            // Single-pattern categories don't need the Pattern 2 or Total
+            // rows — Pattern 1 alone already is the final score.
+            const totalPatterns = parseInt(payload.roundTotal ?? document.getElementById("roundTotal")?.textContent) || 1;
+            const singlePattern = totalPatterns <= 1;
+            document.getElementById("refereeBoxesP2").classList.toggle("hidden", singlePattern);
+            document.getElementById("refereeBoxesTotal").classList.toggle("hidden", singlePattern);
+
             const revealed = payload.patternRevealed || {};
-            applyPtRefereeBoxes(payload.patternReferees[1], 1, !!revealed[1]);
-            applyPtRefereeBoxes(payload.patternReferees[2], 2, !!revealed[2]);
+            const referees1 = payload.patternReferees[1] || [];
+            const referees2 = payload.patternReferees[2] || [];
+            applyPtRefereeBoxes(referees1, "refP1_", !!revealed[1]);
+            applyPtRefereeBoxes(referees2, "refP2_", !!revealed[2]);
+
+            // Total row: sum of Pattern 1 + Pattern 2 per referee, only
+            // revealed once both patterns are — otherwise it'd leak a
+            // partial total while Pattern 2 is still in progress.
+            const bothRevealed = !!revealed[1] && !!revealed[2];
+            const totals = referees1.map((ref1, idx) => {
+                const ref2 = referees2[idx];
+                return {
+                    active: !!ref1?.active,
+                    score: {
+                        red: (parseFloat(ref1?.score?.red) || 0) + (parseFloat(ref2?.score?.red) || 0),
+                        blue: (parseFloat(ref1?.score?.blue) || 0) + (parseFloat(ref2?.score?.blue) || 0)
+                    }
+                };
+            });
+            applyPtRefereeBoxes(totals, "refTotal_", bothRevealed, 20);
         }
 
         if (payload.tradSparringEnabled !== undefined) {
