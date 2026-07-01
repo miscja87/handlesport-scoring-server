@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Referee Scoring</title>
     <link rel="icon" href="/favicon.ico">
     <style>
@@ -11,7 +11,11 @@
         body {
             background: #1a1f2e;
             font-family: 'Arial', sans-serif;
-            height: 100dvh;
+            height: 100svh; /* smallest viewport height — avoids the last row
+                                getting overlapped when the browser toolbar or
+                                a system gesture bar reclaims space, which
+                                100dvh doesn't reliably account for in
+                                landscape on some Android browsers */
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -102,6 +106,7 @@
             grid-template-columns: auto 1fr;
             gap: 3px;
             padding: 3px 0 0 0;
+            padding-bottom: env(safe-area-inset-bottom, 0px);
             flex-shrink: 0;
         }
         .footer-btn {
