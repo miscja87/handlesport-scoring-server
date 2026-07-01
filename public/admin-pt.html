@@ -968,14 +968,14 @@
             const row1 = document.createElement("div");
             row1.className = "referee-pattern-row";
             row1.innerHTML = `
-                <div class="referee-score-box red" id="refPattern1Red${i}">10</div>
-                <div class="referee-score-box blue" id="refPattern1Blue${i}">10</div>
+                <div class="referee-score-box red" id="refPattern1Red${i}" onclick="editPatternRefereeScore(${i}, 1, 'red')">10</div>
+                <div class="referee-score-box blue" id="refPattern1Blue${i}" onclick="editPatternRefereeScore(${i}, 1, 'blue')">10</div>
             `;
             const row2 = document.createElement("div");
             row2.className = "referee-pattern-row";
             row2.innerHTML = `
-                <div class="referee-score-box red" id="refPattern2Red${i}">10</div>
-                <div class="referee-score-box blue" id="refPattern2Blue${i}">10</div>
+                <div class="referee-score-box red" id="refPattern2Red${i}" onclick="editPatternRefereeScore(${i}, 2, 'red')">10</div>
+                <div class="referee-score-box blue" id="refPattern2Blue${i}" onclick="editPatternRefereeScore(${i}, 2, 'blue')">10</div>
             `;
             liveRow.parentNode.insertBefore(row1, liveRow);
             liveRow.parentNode.insertBefore(row2, liveRow);
@@ -1029,6 +1029,40 @@
         patternScores[refereeId][currentPatternNumber] = { red: score.red ?? 0, blue: score.blue ?? 0 };
         refreshPatternRowsDisplay();
         recalculateMainScorePT();
+    }
+
+    // Opens the shared keypad to manually correct a single referee's score
+    // for one specific pattern slot (mirrors admin-sp.html's editRefereeScore,
+    // but targets patternScores[refereeId][patternNumber] instead of the
+    // single live score, since PT keeps Pattern 1 and Pattern 2 independent).
+    function editPatternRefereeScore(refereeId, patternNumber, color) {
+        const scores = patternScores[refereeId];
+        if (!scores) return;
+
+        SharedAdmin.openKeypad(null, `Referee ${refereeId} — Pattern ${patternNumber} — ${color.toUpperCase()} score`, 0, {
+            allowNegative: true,
+            initialValue: scores[patternNumber][color],
+            onConfirm: (value) => {
+                scores[patternNumber][color] = value;
+                refreshPatternRowsDisplay();
+                recalculateMainScorePT();
+                pushDisplayUpdatePT();
+
+                // Only push the correction to the referee's tablet if we're
+                // editing the pattern currently in progress for them — a
+                // finished pattern's score shouldn't disturb what their
+                // tablet is showing for the pattern they're on now.
+                const currentPatternNumber = parseInt(document.getElementById("roundIndicator")?.textContent) || 1;
+                const refereeState = SharedAdmin.getRefereeState();
+                const ref = refereeState[refereeId];
+                if (patternNumber === currentPatternNumber && ref?.connected) {
+                    ref.score = { ...scores[patternNumber] };
+                    SharedAdmin.notifyRefereeScore(refereeId, ref.score);
+                }
+
+                SharedAdmin.showToast(`Referee ${refereeId} Pattern ${patternNumber} ${color} score set to ${value}`);
+            }
+        });
     }
 
     // Resets both pattern slots back to 10/10 for every referee (RESET ALL).
