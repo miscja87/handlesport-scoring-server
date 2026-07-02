@@ -8,7 +8,7 @@ export const SPECIALTY_CONFIGURATION = {
     PT: {
         startScore: 10,
         referees: 5,
-        buttons: [-0.2, -0.5, 0],
+        buttons: [-0.2, -0.5, -10],
         defaultButton: -0.2
     }
 };
