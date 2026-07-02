@@ -1,4 +1,4 @@
-// ══════════════════════════════════════════════════════════════
+﻿// ══════════════════════════════════════════════════════════════
 // ADMIN SHARED LOGIC
 // Shared between admin.html (SP) and admin-pt.html (PT).
 //
@@ -42,6 +42,8 @@
     let refereeCount = 4;
     let refereeState = {};
     let refereeDefaultStartScore = 0;
+    let refereeButtons = [1];      // specialty's tablet button values (SP: [3,2,1], PT: [-0.2,-0.5,0])
+    let refereeDefaultButton = 1;  // the value a plain, tier-less button press should apply (SP: 1, PT: -0.2)
 
     let currentAuthRefereeId = null;
     let keypadTargetId = null;
@@ -93,6 +95,9 @@
                 ? parseFloat(data.refereeStartScore)
                 : (hooks.refereeStartScore ?? 0);
             initReferees(refereeCountFromServer, startScoreFromServer);
+
+            if (Array.isArray(data.buttons)) refereeButtons = data.buttons;
+            if (data.defaultButton !== undefined) refereeDefaultButton = parseFloat(data.defaultButton);
 
             await startLogSession(setupRingId);
 
@@ -1102,6 +1107,296 @@
         return { redVotes, blueVotes };
     }
 
+    // ── SERIAL PORT (Web Serial API, for external referee controllers) ──
+    // Electron's Chromium engine supports navigator.serial, but unlike a
+    // normal browser tab, Electron doesn't show the OS-native port picker on
+    // its own — main.cjs intercepts the "select-serial-port" event and
+    // forwards the list to us via serialBridge, and we render our own
+    // picker inside this same modal. Actually reading/writing data over the
+    // connection lands separately — this only opens/closes it.
+    const SERIAL_BAUD_RATES = [9600, 14400, 19200, 38400, 57600, 115200];
+    const SERIAL_START_MARKER = String.fromCharCode(2); // STX — controllers frame each message between these
+    const SERIAL_END_MARKER = String.fromCharCode(3);   // ETX
+    let serialPort = null;
+    let serialBaudRate = null;
+    let serialReader = null;
+    let serialBuffer = ""; // holds bytes received so far until a full ETX-terminated message shows up
+
+    if (window.serialBridge) {
+        window.serialBridge.onPortList((ports) => {
+            renderSerialPortPicker(ports);
+        });
+    }
+
+    function openSerialModal() {
+        renderSerialModal();
+        document.getElementById("serialModalOverlay").classList.remove("hidden");
+    }
+
+    function closeSerialModal() {
+        const pickerEl = document.getElementById("serialPortPicker");
+
+        // If a port request is still pending (picker visible), cancel it —
+        // otherwise it's left hanging since requestPort() never resolves
+        // on its own.
+        if (!pickerEl.classList.contains("hidden") && window.serialBridge) {
+            window.serialBridge.choosePort("");
+        }
+
+        document.getElementById("serialModalOverlay").classList.add("hidden");
+        pickerEl.classList.add("hidden");
+    }
+
+    function closeSerialModalOnBackdrop(event) {
+        if (event.target.id === "serialModalOverlay") closeSerialModal();
+    }
+
+    function renderSerialModal() {
+        const baudSelect = document.getElementById("serialBaudRate");
+        if (!baudSelect.dataset.filled) {
+            baudSelect.innerHTML = SERIAL_BAUD_RATES
+                .map(rate => `<option value="${rate}" ${rate === 9600 ? "selected" : ""}>${rate}</option>`)
+                .join("");
+            baudSelect.dataset.filled = "true";
+        }
+
+        const connected = !!serialPort;
+        const statusEl = document.getElementById("serialStatus");
+        statusEl.textContent = connected ? `Connected @ ${serialBaudRate} baud` : "Not connected";
+        statusEl.classList.toggle("connected", connected);
+
+        document.getElementById("serialConnectBtn").classList.toggle("hidden", connected);
+        document.getElementById("serialDisconnectBtn").classList.toggle("hidden", !connected);
+        baudSelect.disabled = connected;
+
+        // Color the topbar SERIAL button itself so the connection is visible
+        // at a glance without having to open the modal.
+        document.getElementById("serialToggleBtn")?.classList.toggle("active", connected);
+    }
+
+    // Renders the port list pushed by main.cjs in response to
+    // navigator.serial.requestPort() — the user picks one here, which
+    // resolves the pending Electron selection via serialBridge.choosePort().
+    function renderSerialPortPicker(ports) {
+        const pickerEl = document.getElementById("serialPortPicker");
+        if (!pickerEl) return;
+
+        const emptyNotice = ports.length
+            ? ""
+            : `<div class="serial-port-empty">No serial ports found. Plug in the device and try again.</div>`;
+
+        const portButtons = ports.map((p, i) =>
+            `<button class="serial-port-btn" data-port-id="${p.portId}">${p.displayName || `Port ${i + 1}`}</button>`
+        ).join("");
+
+        // Always offer a way out — without this, an empty port list (or
+        // simply changing your mind) leaves the pending Electron selection
+        // hanging forever, since requestPort() never resolves on its own.
+        pickerEl.innerHTML = `${emptyNotice}${portButtons}<button class="serial-port-btn cancel" data-port-id="">Cancel</button>`;
+
+        pickerEl.querySelectorAll(".serial-port-btn").forEach(btn => {
+            btn.onclick = () => {
+                window.serialBridge.choosePort(btn.dataset.portId);
+                pickerEl.classList.add("hidden");
+            };
+        });
+        pickerEl.classList.remove("hidden");
+    }
+
+    async function connectSerial() {
+        if (!navigator.serial) {
+            showToast("Web Serial API not available in this window");
+            return;
+        }
+        if (!window.serialBridge) {
+            showToast("Serial bridge not available");
+            return;
+        }
+
+        const baudRate = parseInt(document.getElementById("serialBaudRate").value) || 9600;
+
+        try {
+            const port = await navigator.serial.requestPort();
+            await port.open({ baudRate });
+
+            serialPort = port;
+            serialBaudRate = baudRate;
+
+            showToast(`Serial port connected at ${baudRate} baud`);
+            logEvent("serial_connected", { baudRate });
+            clearSerialLog();
+            appendSerialLog(`Connected at ${baudRate} baud — waiting for data...`);
+            renderSerialModal();
+
+            startSerialReadLoop();
+        } catch (err) {
+            console.error("Serial connection error:", err);
+            showToast(`Serial connection failed: ${err.message}`);
+        }
+    }
+
+    async function disconnectSerial() {
+        if (!serialPort) return;
+
+        try {
+            if (serialReader) {
+                await serialReader.cancel();
+                serialReader.releaseLock();
+                serialReader = null;
+            }
+            await serialPort.close();
+        } catch (err) {
+            console.error("Serial disconnect error:", err);
+        }
+
+        serialPort = null;
+        serialBaudRate = null;
+
+        showToast("Serial port disconnected");
+        logEvent("serial_disconnected", {});
+        appendSerialLog("Disconnected.");
+        renderSerialModal();
+    }
+
+    // Reads raw text off the port as it arrives. The controller sends bytes
+    // in whatever chunks the OS/driver feels like (often one character at a
+    // time), so a single "message" only exists once a full STX...ETX frame
+    // has arrived — we accumulate into serialBuffer and only log/emit once
+    // an ETX shows up, same framing the controller itself uses. Purely
+    // diagnostic for now (confirming presses reach us), before any real
+    // handling logic gets built on top of it.
+    async function startSerialReadLoop() {
+        const decoder = new TextDecoderStream();
+        const readableStreamClosed = serialPort.readable.pipeTo(decoder.writable).catch(() => {});
+        serialReader = decoder.readable.getReader();
+        serialBuffer = "";
+
+        try {
+            while (true) {
+                const { value, done } = await serialReader.read();
+                if (done) break;
+                if (!value) continue;
+
+                serialBuffer += value;
+                const messages = serialBuffer.split(SERIAL_END_MARKER);
+                serialBuffer = messages.pop(); // last piece is incomplete (no ETX yet) — keep buffering it
+
+                for (const raw of messages) {
+                    const message = raw.split(SERIAL_START_MARKER).join("").trim();
+                    if (!message) continue;
+                    appendSerialLog(message);
+                    handleSerialMessage(message);
+                }
+            }
+        } catch (err) {
+            console.error("Serial read error:", err);
+            appendSerialLog(`[error] ${err.message}`, true);
+        } finally {
+            await readableStreamClosed;
+        }
+    }
+
+    // Dispatches a parsed controller message. Only "ScoreAction" is handled
+    // for now; anything else (battery pings, handshakes, unknown frames)
+    // is left alone — it's already visible in the log box for inspection.
+    function handleSerialMessage(message) {
+        let data;
+        try {
+            data = JSON.parse(message);
+        } catch (err) {
+            return; // not JSON — not something we act on
+        }
+
+        if (data.identifier === "ScoreAction") {
+            applyControllerScoreAction(data);
+        }
+    }
+
+    // Applies a controller button press exactly like a tablet press would:
+    // compute the referee's new score locally, then POST the same
+    // "update_score" action tablet.html itself sends. The existing
+    // broadcastAdmin → /stream/admin → updateRefereeScore() pipeline then
+    // takes it from there (DOM, PT pattern-slot redirect, Level 0
+    // enforcement server-side, session log) — no separate code path needed.
+    async function applyControllerScoreAction(data) {
+        const refereeId = parseInt(data.referee);
+        const color = String(data.scorer || "").toLowerCase();
+
+        // The controller's own "scoreValue" is a generic press signal (e.g.
+        // always 1), not the actual point value — the real per-press amount
+        // depends on the specialty (SP: +1, PT: -0.2), same as the tablet's
+        // default button. Ignore the message's magnitude and use that.
+        const delta = refereeDefaultButton;
+
+        if (!refereeId || (color !== "red" && color !== "blue") || isNaN(delta)) {
+            console.warn("Ignoring malformed ScoreAction:", data);
+            return;
+        }
+
+        const ref = refereeState[refereeId];
+        if (!ref) {
+            console.warn(`ScoreAction for unknown referee ${refereeId}`);
+            return;
+        }
+
+        // The controller has no login/auth step like a tablet does — the
+        // first score it sends for a referee is the only "connected" signal
+        // we get, so mark it here (colors the boxes, syncs PT's rows, etc.).
+        if (!ref.connected) {
+            markRefereeConnected(refereeId);
+        }
+
+        const newScore = { red: ref.score.red, blue: ref.score.blue };
+        newScore[color] = Math.max(0, parseFloat(((parseFloat(newScore[color]) || 0) + delta).toFixed(1)));
+
+        try {
+            const res = await fetch(`${apiBase()}/api/score/referee/${refereeId}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "update_score",
+                    score: { red: String(newScore.red), blue: String(newScore.blue) }
+                })
+            });
+
+            if (res.status === 409) {
+                // Server-side "not in PLAY" gate — expected/common (e.g. the
+                // controller was pressed before START), not a real error.
+                appendSerialLog(`Ignored — match is not in PLAY state (referee ${refereeId})`);
+                return;
+            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        } catch (err) {
+            console.error("Failed to apply controller score action:", err);
+            appendSerialLog(`[error] Failed to apply score for referee ${refereeId}: ${err.message}`, true);
+        }
+    }
+
+    function appendSerialLog(text, isError = false) {
+        console.log(isError ? "[serial:error]" : "[serial:data]", text);
+
+        const logEl = document.getElementById("serialLog");
+        if (!logEl) return;
+
+        const time = new Date().toLocaleTimeString();
+        const line = document.createElement("div");
+        line.className = isError ? "serial-log-line error" : "serial-log-line";
+        line.textContent = `[${time}] ${text}`;
+        logEl.appendChild(line);
+
+        // Cap history so the box doesn't grow unbounded during a long session.
+        while (logEl.children.length > 100) {
+            logEl.removeChild(logEl.firstChild);
+        }
+
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function clearSerialLog() {
+        const logEl = document.getElementById("serialLog");
+        if (logEl) logEl.innerHTML = "";
+    }
+
     // ── TOAST ──
     function showToast(msg) {
         const toast = document.getElementById("toast");
@@ -1182,6 +1477,10 @@
 
         // flag picker
         openFlagPicker, selectFlag, closeFlagPicker, closeFlagPickerOnBackdrop,
+
+        // serial port
+        openSerialModal, closeSerialModal, closeSerialModalOnBackdrop,
+        connectSerial, disconnectSerial,
 
         // display window
         toggleDisplayWindow, buildBaseDisplayPayload,

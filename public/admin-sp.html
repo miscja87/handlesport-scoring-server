@@ -254,6 +254,7 @@
         <div class="ring-title">RING <span id="ringNumber">1</span> - <span class="event-name" id="eventName">Test Event</span>
             <button class="display-toggle-btn" onclick="SharedAdmin.toggleDisplayWindow()" id="displayToggleBtn">📺 OPEN DISPLAY</button>
             <button class="display-toggle-btn" onclick="SharedAdmin.downloadSessionLog()">📄 DOWNLOAD LOG</button>
+            <button class="display-toggle-btn" id="serialToggleBtn" onclick="SharedAdmin.openSerialModal()">🔌 SERIAL</button>
         </div>
 
         <div class="topbar-row2">
@@ -533,6 +534,32 @@
         </div>
         <div class="winner-cancel-row">
             <button class="winner-cancel-btn" onclick="closeWinnerModal()">Cancel — review scores first</button>
+        </div>
+    </div>
+</div>
+
+<!-- SERIAL MODAL -->
+<div class="info-modal-overlay hidden" id="serialModalOverlay" onclick="SharedAdmin.closeSerialModalOnBackdrop(event)">
+    <div class="info-modal">
+        <div class="info-modal-header">
+            <span class="info-icon">🔌</span>
+            <h3>Serial connection</h3>
+        </div>
+        <div class="info-modal-body">
+            <div class="serial-field">
+                <label>BAUD RATE</label>
+                <select id="serialBaudRate"></select>
+            </div>
+            <div class="serial-status" id="serialStatus">Not connected</div>
+            <div class="serial-port-picker hidden" id="serialPortPicker"></div>
+            <div class="serial-log" id="serialLog"></div>
+        </div>
+        <div class="error-modal-footer">
+            <button class="success" id="serialConnectBtn" onclick="SharedAdmin.connectSerial()">CONNECT</button>
+            <button class="hidden" id="serialDisconnectBtn" onclick="SharedAdmin.disconnectSerial()">DISCONNECT</button>
+        </div>
+        <div class="winner-cancel-row">
+            <button class="winner-cancel-btn" onclick="SharedAdmin.closeSerialModal()">Close</button>
         </div>
     </div>
 </div>

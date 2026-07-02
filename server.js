@@ -9,7 +9,7 @@ import { fileURLToPath } from "url";
 import { initScores, getScores, updateScore, deleteScore } from "./scores.js";
 import { createMatch, updateMatchDetails, updateMatchState, getMatchState } from "./match.js";
 import { loginAsServer, createRefereeDoc, updateRefereeDoc, deleteRefereeDoc, auth } from "./firestore.js";
-import { ACTIONS, API_KEY, HANDLESPORT_BACKEND_URL } from "./constants.js";
+import { ACTIONS, API_KEY, HANDLESPORT_BACKEND_URL, STATUS } from "./constants.js";
 import { SPECIALTY_CONFIGURATION } from "./specialty.js";
 import {
     initLogger,
@@ -121,6 +121,8 @@ app.post("/api/login/admin", async (req, res) => {
             token: jwtToken,
             referees : SPECIALTY_CONFIGURATION[specialtyCode].referees,
             refereeStartScore: SPECIALTY_CONFIGURATION[specialtyCode].startScore,
+            buttons: SPECIALTY_CONFIGURATION[specialtyCode].buttons,
+            defaultButton: SPECIALTY_CONFIGURATION[specialtyCode].defaultButton,
             localIp: LOCAL_IP
         });
     
@@ -183,6 +185,14 @@ app.post("/api/score/referee/:id", (req, res) => {
 
     if (!currentScores[referee]) {
         return res.status(404).json({ error: `Referee ${referee} not found` });
+    }
+
+    // Score updates are only allowed while the match is actually running —
+    // tablet.html already blocks this client-side, but not every caller
+    // goes through the tablet UI (e.g. the serial controller bridge), so
+    // it's enforced here too as the single source of truth.
+    if (action === ACTIONS.UPDATE_SCORE && getMatchState() !== STATUS.PLAY) {
+        return res.status(409).json({ error: "Scoring blocked — match is not in PLAY state" });
     }
 
     let red = parseFloat(score.red);

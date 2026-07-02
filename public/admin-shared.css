@@ -823,3 +823,75 @@ body {
 .name-bar:active { filter: brightness(1.2); }
 .name-bar.red  { background: #cc0000; justify-content: flex-end; }
 .name-bar.blue { background: #1a6fa8; }
+
+/* ── SERIAL MODAL (reuses .info-modal shell) ── */
+.serial-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 14px;
+}
+.serial-field label {
+    font-size: 11px;
+    color: #a0aab8;
+    letter-spacing: 0.5px;
+}
+.serial-field select {
+    background: #252d3f;
+    border: 1px solid #3a4560;
+    color: #e8eaf0;
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-size: 14px;
+    outline: none;
+    cursor: pointer;
+}
+.serial-field select:disabled { opacity: 0.5; cursor: not-allowed; }
+.serial-status {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #a0aab8;
+    margin-bottom: 14px;
+}
+.serial-status.connected { color: #38a169; }
+.serial-port-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+.serial-port-btn {
+    background: #252d3f;
+    border: 1px solid #3a4560;
+    color: #e8eaf0;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+.serial-port-btn:active { background: #2a3550; }
+.serial-port-btn.cancel { color: #8a93a8; text-align: center; }
+.serial-port-empty {
+    text-align: center;
+    font-size: 13px;
+    color: #8a93a8;
+}
+.serial-log {
+    background: #12161f;
+    border: 1px solid #3a4560;
+    border-radius: 6px;
+    padding: 8px 10px;
+    height: 140px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+}
+.serial-log-line {
+    color: #c8ccd8;
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1.5;
+}
+.serial-log-line.error { color: #e05a5a; }
