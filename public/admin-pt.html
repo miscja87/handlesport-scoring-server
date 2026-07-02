@@ -1304,7 +1304,7 @@
         if (!scores) return;
 
         SharedAdmin.openKeypad(null, `Referee ${refereeId} — Pattern ${patternNumber} — ${color.toUpperCase()} score`, 0, {
-            allowNegative: true,
+            allowNegative: false, // PT scores can't go below 0
             initialValue: scores[patternNumber][color],
             onConfirm: (value) => {
                 scores[patternNumber][color] = value;

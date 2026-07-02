@@ -435,7 +435,7 @@
             return;
         }
         history[color].push(scores[color]);
-        scores[color] = parseFloat((scores[color] + points).toFixed(1));
+        scores[color] = Math.max(0, parseFloat((scores[color] + points).toFixed(1)));
         updateDisplay();
         await sendScore();
     }
