@@ -1120,6 +1120,7 @@
     let serialPort = null;
     let serialBaudRate = null;
     let serialReader = null;
+    let serialReadableClosed = null; // promise from readable.pipeTo() — must resolve before port.close(), or the OS handle stays locked
     let serialBuffer = ""; // holds bytes received so far until a full ETX-terminated message shows up
 
     if (window.serialBridge) {
@@ -1244,6 +1245,15 @@
                 serialReader.releaseLock();
                 serialReader = null;
             }
+
+            // port.close() throws (or leaves the OS handle locked, blocking
+            // any future reconnect until the app restarts) unless the pipe
+            // from readable → decoder has actually finished unwinding first.
+            if (serialReadableClosed) {
+                await serialReadableClosed.catch(() => {});
+                serialReadableClosed = null;
+            }
+
             await serialPort.close();
         } catch (err) {
             console.error("Serial disconnect error:", err);
@@ -1267,7 +1277,7 @@
     // handling logic gets built on top of it.
     async function startSerialReadLoop() {
         const decoder = new TextDecoderStream();
-        const readableStreamClosed = serialPort.readable.pipeTo(decoder.writable).catch(() => {});
+        serialReadableClosed = serialPort.readable.pipeTo(decoder.writable).catch(() => {});
         serialReader = decoder.readable.getReader();
         serialBuffer = "";
 
@@ -1291,8 +1301,6 @@
         } catch (err) {
             console.error("Serial read error:", err);
             appendSerialLog(`[error] ${err.message}`, true);
-        } finally {
-            await readableStreamClosed;
         }
     }
 
