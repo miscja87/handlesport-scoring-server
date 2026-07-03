@@ -461,7 +461,10 @@
 
     async function sendScore() {
         try {
-            navigator.vibrate(100);
+            // Not supported on iOS Safari (navigator.vibrate is undefined
+            // there) — calling it unconditionally throws and skips the
+            // fetch below entirely, which is why scores failed to send.
+            if (navigator.vibrate) navigator.vibrate(100);
             await fetch(`${serverBase}/api/score/referee/${referee}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
