@@ -51,9 +51,10 @@
     }
 
     // ── REFEREE BOXES ──
-    // Builds the referee-boxes grid markup for the given referee count
-    // (2 boxes per referee: blue, red) and sets the grid-template-columns
-    // accordingly. Call once at startup after the DOM is ready.
+    // Builds the referee-boxes grid markup for the given referee count.
+    // Each referee is a "pair" wrapper (blue box + red box, flex row) so a
+    // point-difference badge can be absolutely centered over both — see
+    // applyRefereeBoxes(). Call once at startup after the DOM is ready.
     function buildRefereeBoxes(count) {
         refereeCount = count;
 
@@ -61,12 +62,15 @@
         const labels = document.getElementById("refereeLabels");
         if (!grid) return;
 
-        grid.style.gridTemplateColumns = `repeat(${count * 2}, 1fr)`;
+        grid.style.gridTemplateColumns = `repeat(${count}, 1fr)`;
         grid.innerHTML = "";
         for (let i = 1; i <= count; i++) {
             grid.insertAdjacentHTML("beforeend", `
-                <div class="referee-box" id="ref${i}blue"></div>
-                <div class="referee-box" id="ref${i}red"></div>
+                <div class="referee-pair">
+                    <div class="referee-box" id="ref${i}blue"></div>
+                    <div class="referee-box" id="ref${i}red"></div>
+                    <div class="referee-diff" id="refDiff${i}"></div>
+                </div>
             `);
         }
 
@@ -83,31 +87,49 @@
 
     // Applies the `referees` array from the IPC payload to the boxes built
     // by buildRefereeBoxes. Each entry: { score: {red, blue}, active }.
-    // Colors the box of whichever side is ahead for that referee, with
-    // intensity scaling by margin (0 -> base color, >=8 -> max intensity).
+    // Colors only the box of whichever side is ahead for that referee, at a
+    // fixed, punchy intensity (no more margin-based scaling — the
+    // point-difference badge on top already conveys the margin). A tie (or
+    // an inactive referee) leaves both boxes neutral.
+    const SP_BOX_INTENSITY = 1.2;
+
     function applyRefereeBoxes(referees) {
         referees.forEach((ref, idx) => {
             const i = idx + 1;
             const redBox = document.getElementById(`ref${i}red`);
             const blueBox = document.getElementById(`ref${i}blue`);
+            const diffEl = document.getElementById(`refDiff${i}`);
             const isActive = !!ref?.active;
 
             const redScore = parseFloat(ref?.score?.red) || 0;
             const blueScore = parseFloat(ref?.score?.blue) || 0;
             const margin = Math.abs(redScore - blueScore);
 
-            // Linear scale: margin 0 -> intensity 1 (base color), margin >= 8 -> intensity 1.6 (max)
-            const intensity = 1 + Math.min(margin, 8) / 8 * 0.6;
+            const redWins = isActive && redScore > blueScore;
+            const blueWins = isActive && blueScore > redScore;
 
             if (redBox) {
                 redBox.textContent = redScore;
-                redBox.classList.toggle("red-active", isActive);
-                redBox.style.setProperty("--intensity", (isActive && redScore > blueScore) ? intensity : 1);
+                redBox.classList.toggle("red-active", redWins);
+                redBox.style.setProperty("--intensity", redWins ? SP_BOX_INTENSITY : 1);
             }
             if (blueBox) {
                 blueBox.textContent = blueScore;
-                blueBox.classList.toggle("blue-active", isActive);
-                blueBox.style.setProperty("--intensity", (isActive && blueScore > redScore) ? intensity : 1);
+                blueBox.classList.toggle("blue-active", blueWins);
+                blueBox.style.setProperty("--intensity", blueWins ? SP_BOX_INTENSITY : 1);
+            }
+            if (diffEl) {
+                const showBadge = isActive && margin > 0;
+                diffEl.classList.toggle("visible", showBadge);
+                diffEl.classList.toggle("red-lead", showBadge && redScore > blueScore);
+                diffEl.classList.toggle("blue-lead", showBadge && blueScore > redScore);
+                if (showBadge) {
+                    diffEl.textContent = `+${margin}`;
+                    // Grows from the base size (margin 1) up to 1.5x at a
+                    // 10-point difference, then holds steady past that.
+                    const badgeScale = 1 + (Math.min(margin, 10) - 1) / 9 * 0.5;
+                    diffEl.style.setProperty("--badge-scale", badgeScale);
+                }
             }
         });
     }

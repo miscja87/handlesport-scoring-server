@@ -101,6 +101,17 @@ html, body {
     gap: 0.9vw;
     margin-top: 0.6vh;
 }
+/* SP puts the labels after the boxes (below them) — space them apart the
+   same way, without affecting PT where labels still come first. */
+.referee-boxes + .referee-labels {
+    margin-top: 0.6vh;
+}
+/* SP-only: nudge the score row down into the room freed up by moving the
+   labels below it (id-scoped so PT's own P1/P2/Total rows, which reuse the
+   .referee-boxes class, are untouched). */
+#refereeBoxes {
+    margin-top: 2.4vh;
+}
 .referee-box {
     background: #2a3142;
     border: 1px solid #3a4560;
@@ -124,6 +135,41 @@ html, body {
     border-color: #2070a0;
     filter: brightness(var(--intensity, 1)) saturate(var(--intensity, 1));
 }
+
+/* ── REFEREE PAIR WRAPPER (SP only — groups one referee's blue+red box so
+   the point-difference badge below can be centered/overlapped on top of
+   both) ── */
+.referee-pair {
+    position: relative;
+    display: flex;
+    gap: 0.9vw;
+}
+.referee-pair .referee-box { flex: 1; }
+
+.referee-diff {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    /* --badge-scale grows with the point difference (see applyRefereeBoxes) —
+       scaling the whole badge via transform keeps padding/border/text all
+       proportional automatically, instead of resizing each property by hand. */
+    transform: translate(-50%, -50%) scale(var(--badge-scale, 1));
+    z-index: 2;
+    min-width: 6vh;
+    padding: 0.7vh 1.3vh;
+    border-radius: 1.4vh;
+    border: 0.25vh solid rgba(255,255,255,0.85);
+    font-size: 3.4vh;
+    font-weight: 900;
+    color: white;
+    text-align: center;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.6);
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s ease-out;
+}
+.referee-diff.visible { opacity: 1; }
+.referee-diff.red-lead { background: #e8000a; }
+.referee-diff.blue-lead { background: #1a8fd8; }
 
 /* ── NEXT MATCH ROWS ── */
 .next-matches {
