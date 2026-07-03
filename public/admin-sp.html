@@ -1033,6 +1033,7 @@
         }
 
         notifyMatchUpdate(color);
+        promptResetForNextMatch();
     }
 
     // TIE: same flow as confirmWinner, but no winner/loser — sends tie: "Y"
@@ -1048,6 +1049,21 @@
         SharedAdmin.logEvent("tie_confirmed", { score: { red: scoreRed, blue: scoreBlue } });
 
         notifyMatchUpdate(null, true);
+        promptResetForNextMatch();
+    }
+
+    // Offers to reset right after a match ends — loading the next match (if
+    // any) doesn't clear the round/timer/warnings/penalties on its own
+    // (onMatchApplied is a no-op for SP), so without this the admin has to
+    // remember to hit RESET ALL manually before the next match starts.
+    function promptResetForNextMatch() {
+        SharedAdmin.showInfoModal(
+            "Reset for the next match?",
+            "Clears the score, warnings, penalties, timer and round back to the start.",
+            "RESET ALL",
+            performResetAll,
+            { cancelText: "Not yet" }
+        );
     }
 
     // Sends the match result to the backend via /api/match/update — only
