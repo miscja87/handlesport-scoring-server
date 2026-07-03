@@ -1279,6 +1279,8 @@
         const wDisplay = document.getElementById(wDisplayId);
 
         document.getElementById(plusId).addEventListener("click", () => {
+            clickSound.play();
+
             const newW = parseInt(wDisplay.textContent) + 1;
             wDisplay.textContent = newW;
 
@@ -1316,6 +1318,8 @@
 
     function bindPenaltyPlus(plusId, pDisplayId, color) {
         document.getElementById(plusId).addEventListener("click", () => {
+            clickSound.play();
+
             const pDisplay = document.getElementById(pDisplayId);
             pDisplay.textContent = parseInt(pDisplay.textContent) + 1;
 
