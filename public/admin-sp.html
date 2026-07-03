@@ -903,6 +903,9 @@
         if (remainingSeconds <= 10) {
             timerDisplay.classList.add("warning");
         }
+        if (remainingSeconds > 0 && remainingSeconds <= 3) {
+            beepSound.play(); // audible countdown for the last 3 seconds (3, 2, 1)
+        }
     }
 
     function onRoundFinished() {
