@@ -248,7 +248,7 @@
 <div class="panel">
 
     <audio id="gong_sound"><source src="gong.mp3"></audio>
-    <audio id="buzz_sound"><source src="gong.mp3"></audio>
+    <audio id="buzz_sound"><source src="buzz.mp3"></audio>
 
     <!-- TOP BAR -->
     <div class="topbar">
@@ -891,7 +891,7 @@
             if (isBreakPhase) {
                 onBreakFinished();
             } else {
-                gongSound.play(); // same gong used at round start, now also marking round end
+                buzzSound.play(); // marks round end (gong is for round start)
                 onRoundFinished();
             }
             return;
