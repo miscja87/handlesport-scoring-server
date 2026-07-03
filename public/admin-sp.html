@@ -889,6 +889,7 @@
             if (isBreakPhase) {
                 onBreakFinished();
             } else {
+                gongSound.play(); // same gong used at round start, now also marking round end
                 onRoundFinished();
             }
             return;
@@ -1186,6 +1187,16 @@
     });
 
     document.getElementById("resetAllBtn").addEventListener("click", () => {
+        SharedAdmin.showInfoModal(
+            "Reset everything?",
+            "This clears the score, warnings, penalties, timer and round back to the start.",
+            "RESET ALL",
+            performResetAll,
+            { cancelText: "Cancel" }
+        );
+    });
+
+    function performResetAll() {
         stopTimer();
         SharedAdmin.closeInfoModal();
         resetDoctorTimers();
@@ -1221,7 +1232,7 @@
         }
 
         notifyMatchScoreState();
-    });
+    }
 
     document.getElementById("roundDuration").addEventListener("change", (e) => {
         if (!isRunning) {

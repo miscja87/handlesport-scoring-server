@@ -1536,6 +1536,16 @@
 
     // ── RESET ALL ──
     document.getElementById("resetAllBtn").addEventListener("click", () => {
+        SharedAdmin.showInfoModal(
+            "Reset everything?",
+            "This clears the score, patterns and referees back to the start.",
+            "RESET ALL",
+            performResetAll,
+            { cancelText: "Cancel" }
+        );
+    });
+
+    function performResetAll() {
         SharedAdmin.closeInfoModal();
 
         document.getElementById("roundIndicator").textContent = "1";
@@ -1553,7 +1563,7 @@
         recalculateMainScorePT();
         clearPatternDisplay();
         resetTradTimer();
-    });
+    }
 
     // Resets every referee's live (current pattern) score back to 10/10 and
     // notifies connected tablets. Used both by RESET ALL and when advancing
