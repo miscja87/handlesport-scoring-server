@@ -1305,6 +1305,32 @@
     bindPenaltyPlus("pPlusLeft",  "pScoreLeft",  "red");
     bindPenaltyPlus("pPlusRight", "pScoreRight", "blue");
 
+    // ── KEYBOARD SHORTCUTS ── Q/W/A/S mirror the "(Q)"/"(W)"/"(A)"/"(S)"
+    // hints already printed on the W/-P buttons above — just click the same
+    // button so all the existing logic (warning->penalty escalation, logging,
+    // display push) runs unchanged.
+    const KEYBOARD_SHORTCUT_BUTTONS = {
+        q: "wPlusLeft",
+        w: "wPlusRight",
+        a: "pPlusLeft",
+        s: "pPlusRight"
+    };
+
+    function isAnyModalOpen() {
+        return [...document.querySelectorAll('[id$="Overlay"]')].some(el => !el.classList.contains("hidden"));
+    }
+
+    document.addEventListener("keydown", (event) => {
+        if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+        if (event.target.matches("input, textarea, select")) return;
+
+        const buttonId = KEYBOARD_SHORTCUT_BUTTONS[event.key.toLowerCase()];
+        if (!buttonId || isAnyModalOpen()) return;
+
+        event.preventDefault();
+        document.getElementById(buttonId)?.click();
+    });
+
     // Notifies the server of the current overall score, warnings and minus
     // points (the general W/-P boxes, not per-referee scores), and pushes
     // the same data to the public display.
