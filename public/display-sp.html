@@ -117,6 +117,14 @@
         }
         .timer-ring-progress.warning { stroke: #e05a5a; }
         .timer-ring-progress.idle { stroke: #4a5578; }
+        .timer-ring-progress.gs-active {
+            stroke: #e0b400;
+            animation: gsRingPulse 1.2s ease-in-out infinite;
+        }
+        @keyframes gsRingPulse {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.35; }
+        }
 
         .timer-display {
             position: relative;
@@ -131,6 +139,15 @@
         }
         .timer-display.compact {
             font-size: 16vh;
+        }
+        .timer-display.gs-active {
+            font-size: 12vh;
+            color: #e0b400;
+            animation: gsTextPulse 1.2s ease-in-out infinite;
+        }
+        @keyframes gsTextPulse {
+            0%, 100% { text-shadow: 0 0 0.3em #e0b400; }
+            50%      { text-shadow: 0 0 0.9em #e0b400; }
         }
         .timer-ms {
             font-size: 0.35em;
@@ -303,6 +320,32 @@
         updateTimerRing(displaySeconds, countdownTotalSeconds, countdownIsRunning);
     }
 
+    // ── GOLDEN SCORE ── replaces the countdown ring/text with a pulsing "GS"
+    // while active — there's no time to count down, just a live indicator.
+    function showGoldenScoreTimer() {
+        if (countdownFrame) cancelAnimationFrame(countdownFrame);
+        countdownFrame = null;
+
+        const timerEl = document.getElementById("timerDisplay");
+        const msEl = document.getElementById("timerMs");
+        msEl.textContent = "";
+        timerEl.classList.remove("compact");
+        timerEl.textContent = "GS";
+        timerEl.appendChild(msEl);
+        timerEl.classList.add("gs-active");
+
+        const ring = document.getElementById("timerRingProgress");
+        ring.classList.remove("warning", "idle");
+        ring.classList.add("gs-active");
+        ring.style.strokeDasharray = RING_CIRCUMFERENCE;
+        ring.style.strokeDashoffset = "0";
+    }
+
+    function hideGoldenScoreTimer() {
+        document.getElementById("timerDisplay").classList.remove("gs-active");
+        document.getElementById("timerRingProgress").classList.remove("gs-active");
+    }
+
     const RING_CIRCUMFERENCE = 301.6; // 2 * PI * 48, matches stroke-dasharray in CSS
 
     function updateTimerRing(remaining, total, isRunning) {
@@ -358,9 +401,11 @@
     function applyState(payload) {
         SharedDisplay.applyCommonFields(payload);
 
-        // Round label: shows BREAK, DOCTOR TIMER <COLOR>, or the normal R x/y
+        // Round label: shows GS, BREAK, DOCTOR TIMER <COLOR>, or the normal R x/y
         const roundRowEl = document.getElementById("roundIndicatorRow");
-        if (payload.activeDoctorColor) {
+        if (payload.goldenScoreActive) {
+            roundRowEl.textContent = "GS";
+        } else if (payload.activeDoctorColor) {
             roundRowEl.textContent = `DC.${payload.activeDoctorColor.toUpperCase()}`;
         } else if (payload.isBreakPhase) {
             roundRowEl.textContent = "BREAK";
@@ -370,7 +415,10 @@
             }
         }
 
-        if (payload.remainingSeconds !== undefined) {
+        if (payload.goldenScoreActive) {
+            showGoldenScoreTimer();
+        } else if (payload.remainingSeconds !== undefined) {
+            hideGoldenScoreTimer();
             if (payload.activeDoctorColor && payload.doctorTimerRemaining !== undefined && payload.doctorTimerRemaining !== null) {
                 startSimulatedCountdown(payload.doctorTimerRemaining, payload.doctorTimerTotal, payload.isRunning);
             } else {

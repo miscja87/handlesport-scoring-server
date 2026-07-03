@@ -209,6 +209,38 @@
         }
         .action-btn .icon { font-size: 15px; }
 
+        /* ── GOLDEN SCORE (compact, used rarely — sits next to the DOCTOR
+           TIMER (s) field in the top bar, matching .field input sizing) ── */
+        .gs-mini-btn {
+            width: 80px;
+            padding: 8px 10px;
+            border: 1px solid #3a4560;
+            background: #252d3f;
+            color: #8a93a8;
+            font-weight: 900;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: filter 0.1s, background 0.15s, color 0.15s;
+        }
+        .gs-mini-btn:active { filter: brightness(1.2); }
+        .gs-mini-btn.gs-active {
+            background: #e0b400;
+            border-color: #e0b400;
+            color: #1a1f2e;
+            animation: gsBtnPulse 1.2s ease-in-out infinite;
+        }
+        @keyframes gsBtnPulse {
+            0%, 100% { filter: brightness(1); }
+            50%      { filter: brightness(1.3); }
+        }
+        .gs-mini-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            filter: grayscale(0.5);
+        }
+
         /* ── STATE INDICATOR ── */
         .state-row {
             display: flex;
@@ -283,6 +315,10 @@
                 <div class="field">
                     <label>DOCTOR TIMER (s)</label>
                     <input type="text" id="doctorDuration" value="180" readonly onclick="SharedAdmin.openKeypad('doctorDuration', 'Doctor timer (s)', 0)">
+                </div>
+                <div class="field">
+                    <label>GOLDEN SCORE</label>
+                    <button class="gs-mini-btn" id="goldenScoreBtn" title="Start Golden Score">GS</button>
                 </div>
 
                 <div class="match-nav">
@@ -575,6 +611,7 @@
     let timerInterval = null;
     let isRunning = false;
     let isBreakPhase = false;
+    let goldenScoreActive = false;
 
     // ── DOCTOR TIMER STATE ──
     // Cumulative remaining seconds per color, persists across pause/resume within a match.
@@ -599,13 +636,24 @@
     const beepSound = document.getElementById('beep_sound');
     const clickSound = document.getElementById('click_sound');
 
-    // Disables the round START/PAUSE/RESUME button while a doctor timer is
-    // running, since the two timers can never run at the same time.
+    // Keeps the round START/PAUSE/RESUME button, the two doctor-timer
+    // buttons and the Golden Score button mutually exclusive — only one of
+    // these "modes" can run at a time.
     function syncRoundButtonWithDoctorTimer() {
-        startStopBtn.disabled = !!activeDoctorColor;
+        startStopBtn.disabled = !!activeDoctorColor || goldenScoreActive;
         startStopBtn.title = activeDoctorColor
             ? `Stop the doctor timer ${activeDoctorColor.toUpperCase()} first`
-            : "";
+            : goldenScoreActive
+                ? "Stop Golden Score first"
+                : "";
+
+        doctorTimerLeftBtn.disabled = goldenScoreActive;
+        doctorTimerRightBtn.disabled = goldenScoreActive;
+
+        const gsBtn = document.getElementById("goldenScoreBtn");
+        gsBtn.disabled = !goldenScoreActive && (!!activeDoctorColor || isRunning);
+        gsBtn.classList.toggle("gs-active", goldenScoreActive);
+        gsBtn.title = goldenScoreActive ? "Stop Golden Score" : "Start Golden Score";
     }
 
     // Builds and sends the SP-specific display payload (shared base + timer/
@@ -630,6 +678,7 @@
             remainingSeconds: remainingSeconds,
             totalSeconds: totalSeconds,
             isRunning: isRunning,
+            goldenScoreActive: goldenScoreActive,
 
             score: {
                 red: parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0,
@@ -1155,6 +1204,11 @@
             return;
         }
 
+        if (goldenScoreActive) {
+            SharedAdmin.showToast("Stop Golden Score before starting the round");
+            return;
+        }
+
         if (remainingSeconds <= 0) {
             onRoundFinished();
             return;
@@ -1196,9 +1250,52 @@
     function stopTimer() {
         clearInterval(timerInterval);
         timerInterval = null;
+
+        if (goldenScoreActive) {
+            goldenScoreActive = false;
+            restoreRoundDisplay();
+        }
+
         setState(false);
         updateMatchStatus("stop");
+        syncRoundButtonWithDoctorTimer();
     }
+
+    // ── GOLDEN SCORE ──
+    // Puts the match into PLAY (referees can score) with no running
+    // countdown — it stays live until the admin manually declares a winner
+    // (first point scored wins) or stops it below.
+    function startGoldenScore() {
+        if (isRunning) {
+            SharedAdmin.showToast("Stop the round timer before starting Golden Score");
+            return;
+        }
+        if (activeDoctorColor) {
+            SharedAdmin.showToast(`Stop the doctor timer ${activeDoctorColor.toUpperCase()} first`);
+            return;
+        }
+
+        goldenScoreActive = true;
+        setState(true);
+        updateMatchStatus("play");
+
+        roundLabelEl.innerHTML = "GOLDEN SCORE";
+        timerDisplay.textContent = "GS";
+
+        SharedAdmin.logEvent("golden_score_start", { round: document.getElementById("roundIndicator")?.textContent });
+        SharedAdmin.showToast("Golden Score started — first point wins");
+
+        syncRoundButtonWithDoctorTimer();
+    }
+
+    document.getElementById("goldenScoreBtn").addEventListener("click", () => {
+        if (goldenScoreActive) {
+            SharedAdmin.logEvent("golden_score_stop", {});
+            stopTimer();
+        } else {
+            startGoldenScore();
+        }
+    });
 
     startStopBtn.addEventListener("click", () => {
         const label = startStopLabel.textContent;
