@@ -538,6 +538,84 @@
         applyState: applyState
     });
     SharedDisplay.init();
+
+    // ── DEMO MODE (?demo=1) ──
+    // Scripted walkthrough of every PT display feature — the pattern-name
+    // announcement fly-in, the progress bar, referee boxes revealing only
+    // once a pattern finishes (colored to the winning side), the Total row
+    // once both patterns are in, TRAD.SPARRING mode, and the winner overlay
+    // — for recording a demo video without the real admin panel or
+    // referees connected. Drives applyState() directly, then loops.
+    if (new URLSearchParams(location.search).get("demo") === "1") {
+        const neutralRef = { score: { red: 10, blue: 10 }, active: true };
+        const DEMO_STEPS = [
+            { at: 0, payload: {
+                ring: 2, category: "SENIOR PATTERNS", matchNumber: 5,
+                nameRed: "ANNA FERRARI", nameBlue: "PAOLO CONTI",
+                countryRed: "ITALY", countryBlue: "ITALY",
+                roundIndicator: 1, roundTotal: 2, isRunning: false,
+                score: { red: 0, blue: 0 },
+                patternReferees: { 1: Array(5).fill(neutralRef), 2: Array(5).fill(neutralRef) },
+                patternRevealed: { 1: false, 2: false },
+                tradSparringEnabled: false,
+                nextMatches: [{ red: "ELISA MARINO", blue: "DAVIDE GRECO" }]
+            } },
+            { at: 1500, payload: { clearPatternName: true } },
+            { at: 2500, payload: { announcePatternStart: { name: "CHOONG-JANG" } } },
+            { at: 3500, payload: { isRunning: true } },
+            { at: 9500, payload: { isRunning: false } },
+            { at: 11000, payload: {
+                // Main "score" is majority vote among the 5 referees (0-5,
+                // never a raw point sum) — 2 favor red, 1 blue, 2 tie here.
+                score: { red: 2, blue: 1 },
+                patternReferees: { 1: [
+                    { score: { red: 9.8, blue: 9.6 }, active: true },
+                    { score: { red: 9.7, blue: 9.7 }, active: true },
+                    { score: { red: 9.6, blue: 9.8 }, active: true },
+                    { score: { red: 9.9, blue: 9.5 }, active: true },
+                    { score: { red: 9.5, blue: 9.5 }, active: true }
+                ], 2: Array(5).fill(neutralRef) },
+                patternRevealed: { 1: true, 2: false }
+            } },
+            { at: 16000, payload: { roundIndicator: 2, clearPatternName: true } },
+            { at: 17500, payload: { announcePatternStart: { name: "KORYO" } } },
+            { at: 18500, payload: { isRunning: true } },
+            { at: 24500, payload: { isRunning: false } },
+            { at: 26000, payload: {
+                // Combined (pattern1 + pattern2) majority: 3 referees now
+                // favor red overall, 1 blue, 1 tie.
+                score: { red: 3, blue: 1 },
+                patternReferees: { 1: [
+                    { score: { red: 9.8, blue: 9.6 }, active: true },
+                    { score: { red: 9.7, blue: 9.7 }, active: true },
+                    { score: { red: 9.6, blue: 9.8 }, active: true },
+                    { score: { red: 9.9, blue: 9.5 }, active: true },
+                    { score: { red: 9.5, blue: 9.5 }, active: true }
+                ], 2: [
+                    { score: { red: 9.6, blue: 9.7 }, active: true },
+                    { score: { red: 9.8, blue: 9.4 }, active: true },
+                    { score: { red: 9.5, blue: 9.6 }, active: true },
+                    { score: { red: 9.7, blue: 9.5 }, active: true },
+                    { score: { red: 9.6, blue: 9.6 }, active: true }
+                ] },
+                patternRevealed: { 1: true, 2: true }
+            } },
+            { at: 31000, payload: { tradSparringEnabled: true, tradTimerSeconds: 0 } },
+            { at: 33000, payload: { tradTimerSeconds: 8 } },
+            { at: 35000, payload: { tradTimerSeconds: 16 } },
+            { at: 37000, payload: { tradTimerSeconds: 24 } },
+            { at: 39000, payload: { tradSparringEnabled: false } },
+            { at: 41000, payload: { announceWinner: { color: "red", name: "ANNA FERRARI", scoreRed: 3, scoreBlue: 1 } } }
+        ];
+        const LOOP_AFTER_MS = 49000;
+
+        function runDemo() {
+            DEMO_STEPS.forEach(step => setTimeout(() => applyState(step.payload), step.at));
+            setTimeout(runDemo, LOOP_AFTER_MS);
+        }
+
+        setTimeout(runDemo, 500); // let the page finish laying out first
+    }
 </script>
 
 </body>

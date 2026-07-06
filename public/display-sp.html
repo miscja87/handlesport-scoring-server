@@ -444,6 +444,125 @@
         applyState: applyState
     });
     SharedDisplay.init();
+
+    // ── DEMO MODE (?demo=1) ──
+    // Scripted walkthrough of every SP display feature — timer, warnings/
+    // penalties, referee coloring, the point-difference badge (and its
+    // size scaling with the margin), Golden Score, break phase, and the
+    // winner overlay — for recording a demo video without needing the real
+    // admin panel or any referees connected. Drives applyState() directly
+    // with a timed sequence, then loops.
+    if (new URLSearchParams(location.search).get("demo") === "1") {
+        // Real referees don't all press within the same millisecond — this
+        // spreads a burst of referee updates out by a short, human-scale
+        // gap instead of changing all 4 boxes in one payload. `current` is
+        // mutated in place so later bursts build on top of the running
+        // state. The main "score" (majority vote — how many referees
+        // currently favor each side, never a raw point sum) recalculates
+        // at every single referee update too, same as the real app does.
+        function staggerReferees(baseAt, current, changes, gapMs = 350) {
+            return changes.map(({ index, score }, i) => {
+                current[index] = { score, active: true };
+                const snapshot = current.map(r => ({ score: { ...r.score }, active: r.active }));
+                const redVotes = current.filter(r => r.score.red > r.score.blue).length;
+                const blueVotes = current.filter(r => r.score.blue > r.score.red).length;
+                return {
+                    at: baseAt + i * gapMs,
+                    payload: { referees: snapshot, score: { red: redVotes, blue: blueVotes } }
+                };
+            });
+        }
+
+        let refState = [0, 1, 2, 3].map(() => ({ score: { red: 0, blue: 0 }, active: true }));
+
+        const DEMO_STEPS = [
+            { at: 0, payload: {
+                ring: 1, category: "YOUTH -68KG", matchNumber: 3,
+                nameRed: "LUCA PECCHIA", nameBlue: "ANDREA BONFANTE",
+                countryRed: "ITALY", countryBlue: "ITALY",
+                roundIndicator: 1, roundTotal: 2,
+                remainingSeconds: 120, totalSeconds: 120, isRunning: false, isBreakPhase: false,
+                score: { red: 0, blue: 0 },
+                warnings: { red: 0, blue: 0 },
+                minusPoints: { red: 0, blue: 0 },
+                referees: refState.map(r => ({ score: { ...r.score }, active: r.active })),
+                nextMatches: [{ red: "GIULIA VERDI", blue: "SARA NERI" }]
+            } },
+            { at: 3000, payload: { remainingSeconds: 118, totalSeconds: 120, isRunning: true } },
+
+            // Burst 1: all 4 lean red, one referee at a time — the main
+            // score updates live after each one (see staggerReferees).
+            ...staggerReferees(6000, refState, [
+                { index: 0, score: { red: 2, blue: 0 } },
+                { index: 3, score: { red: 2, blue: 1 } },
+                { index: 1, score: { red: 2, blue: 0 } },
+                { index: 2, score: { red: 1, blue: 0 } }
+            ]),
+
+            // Burst 2: blue answers back and takes the majority.
+            ...staggerReferees(10000, refState, [
+                { index: 2, score: { red: 1, blue: 3 } },
+                { index: 0, score: { red: 2, blue: 4 } },
+                { index: 3, score: { red: 2, blue: 4 } },
+                { index: 1, score: { red: 2, blue: 5 } }
+            ]),
+
+            { at: 14000, payload: { warnings: { red: 1, blue: 0 } } },
+
+            // Burst 3: 3 referees swing back to red, 1 stays with blue.
+            ...staggerReferees(18000, refState, [
+                { index: 1, score: { red: 5, blue: 3 } },
+                { index: 3, score: { red: 6, blue: 5 } },
+                { index: 0, score: { red: 6, blue: 4 } },
+                { index: 2, score: { red: 4, blue: 7 } }
+            ]),
+            { at: 19500, payload: { minusPoints: { red: 0, blue: 1 } } },
+
+            { at: 22000, payload: { isRunning: false, isBreakPhase: true, remainingSeconds: 60, totalSeconds: 60 } },
+            { at: 26000, payload: {
+                // Overall match is tied after the round — this is what
+                // actually sends it to Golden Score.
+                isBreakPhase: false, roundIndicator: 2,
+                remainingSeconds: 120, totalSeconds: 120, isRunning: false,
+                score: { red: 2, blue: 2 },
+                referees: (refState = [
+                    { score: { red: 6, blue: 6 }, active: true },
+                    { score: { red: 5, blue: 4 }, active: true },
+                    { score: { red: 4, blue: 5 }, active: true },
+                    { score: { red: 6, blue: 6 }, active: true }
+                ]).map(r => ({ score: { ...r.score }, active: r.active }))
+            } },
+            { at: 29000, payload: {
+                // Golden Score starts: everything resets to 0-0, first point wins.
+                goldenScoreActive: true, isRunning: true,
+                score: { red: 0, blue: 0 },
+                referees: (refState = [0, 1, 2, 3].map(() => ({ score: { red: 0, blue: 0 }, active: true })))
+                    .map(r => ({ score: { ...r.score }, active: r.active }))
+            } },
+
+            // The golden point: red lands it, referees swing over one at a time.
+            ...staggerReferees(32000, refState, [
+                { index: 1, score: { red: 3, blue: 0 } },
+                { index: 3, score: { red: 3, blue: 0 } },
+                { index: 0, score: { red: 3, blue: 0 } },
+                { index: 2, score: { red: 3, blue: 0 } }
+            ]),
+
+            { at: 35000, payload: {
+                goldenScoreActive: false, isRunning: false,
+                remainingSeconds: 120, totalSeconds: 120, roundIndicator: 2, roundTotal: 2
+            } },
+            { at: 38000, payload: { announceWinner: { color: "red", name: "LUCA PECCHIA", scoreRed: 4, scoreBlue: 0 } } }
+        ];
+        const LOOP_AFTER_MS = 46000;
+
+        function runDemo() {
+            DEMO_STEPS.forEach(step => setTimeout(() => applyState(step.payload), step.at));
+            setTimeout(runDemo, LOOP_AFTER_MS);
+        }
+
+        setTimeout(runDemo, 500); // let the page finish laying out first
+    }
 </script>
 
 </body>
