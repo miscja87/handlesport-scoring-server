@@ -803,16 +803,81 @@
         refereeCount = count;
         refereeDefaultStartScore = startScore;
         refereeState = {};
+        recentScoreEvents = [];
         for (let i = 1; i <= refereeCount; i++) {
             refereeState[i] = {
                 score: { red: startScore, blue: startScore },
                 code: null,
                 url: null,
                 connected: false,
-                enabled: true
+                enabled: true,
+                staleWarned: false, // true once we've flagged this referee as lagging behind the others
+                imbalanceSince: 0   // Date.now() of when this referee first fell behind (0 = not currently behind)
             };
         }
         renderReferees();
+        startRefereeStalenessWatch();
+    }
+
+    // ── REFEREE STALENESS WATCH ──
+    // Flags a referee who's fallen behind the others: EVENT_GAP_THRESHOLD+
+    // scoring events from others with zero events of their own within
+    // EVENT_WINDOW_MS. That imbalance has to hold continuously for
+    // STALE_DWELL_MS (a real 15s of elapsed time) before we actually flag it
+    // — otherwise a quick burst of clicks (or a genuinely fast exchange)
+    // would trigger the warning almost instantly, which felt too twitchy.
+    // EVENT_WINDOW_MS is deliberately longer than the dwell time so the
+    // qualifying events don't age out of the window before the dwell
+    // period has a chance to complete.
+    const EVENT_GAP_THRESHOLD = 1;
+    const EVENT_WINDOW_MS = 20000;
+    const STALE_DWELL_MS = 10000;
+    let recentScoreEvents = []; // { refereeId, timestamp } — pruned to the last EVENT_WINDOW_MS on every check
+    let staleWatchInterval = null;
+
+    function startRefereeStalenessWatch() {
+        if (staleWatchInterval) clearInterval(staleWatchInterval);
+        staleWatchInterval = setInterval(checkRefereeStaleness, 5000);
+    }
+
+    function checkRefereeStaleness() {
+        const activeRefIds = [];
+        for (let i = 1; i <= refereeCount; i++) {
+            const ref = refereeState[i];
+            if (ref && ref.connected && ref.enabled) activeRefIds.push(i);
+        }
+        if (activeRefIds.length < 2) return;
+
+        const now = Date.now();
+        const windowStart = now - EVENT_WINDOW_MS;
+        recentScoreEvents = recentScoreEvents.filter(e => e.timestamp >= windowStart);
+        if (recentScoreEvents.length === 0) return; // nobody's scored in the window at all — idle, not a fault
+
+        activeRefIds.forEach(i => {
+            const ref = refereeState[i];
+            const ownEvents = recentScoreEvents.filter(e => e.refereeId === i).length;
+            const otherEvents = recentScoreEvents.length - ownEvents;
+            const imbalanced = ownEvents === 0 && otherEvents >= EVENT_GAP_THRESHOLD;
+            const card = document.getElementById(`refScoreRed${i}`)?.closest(".referee-card");
+
+            if (!imbalanced) {
+                ref.imbalanceSince = 0;
+                if (ref.staleWarned) {
+                    ref.staleWarned = false;
+                    card?.classList.remove("stale-warning");
+                }
+                return;
+            }
+
+            if (!ref.imbalanceSince) ref.imbalanceSince = now;
+
+            if (now - ref.imbalanceSince >= STALE_DWELL_MS && !ref.staleWarned) {
+                ref.staleWarned = true;
+                card?.classList.add("stale-warning");
+                showToast(`Referee ${i} hasn't scored in a while — check their tablet`);
+                logEvent("referee_stale_warning", { referee: i, otherEvents });
+            }
+        });
     }
 
     function renderReferees() {
@@ -957,6 +1022,7 @@
         if (!refereeState[refereeId] || !score) return;
 
         refereeState[refereeId].score = score;
+        recentScoreEvents.push({ refereeId, timestamp: Date.now() });
 
         const redBox = document.getElementById(`refScoreRed${refereeId}`);
         const blueBox = document.getElementById(`refScoreBlue${refereeId}`);

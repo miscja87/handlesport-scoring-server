@@ -659,6 +659,18 @@ body {
 .referee-card.disabled-referee .referee-btn {
     pointer-events: none;
 }
+/* This referee's score hasn't updated in a while relative to the others —
+   check their tablet (see checkRefereeStaleness in admin-shared.js). */
+.referee-card.stale-warning {
+    outline: 2px solid #e0b400;
+    outline-offset: 6px;
+    border-radius: 8px;
+    animation: staleWarningPulse 1.4s ease-in-out infinite;
+}
+@keyframes staleWarningPulse {
+    0%, 100% { outline-color: #e0b400; }
+    50%      { outline-color: #ffdb4d; }
+}
 .referee-score-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
