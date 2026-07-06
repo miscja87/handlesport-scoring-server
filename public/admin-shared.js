@@ -880,6 +880,20 @@
         });
     }
 
+    // Clears any stale-referee warning — call this on RESET ALL so a fresh
+    // match doesn't start with a leftover yellow indicator from before.
+    function clearRefereeStaleWarnings() {
+        recentScoreEvents = [];
+        for (let i = 1; i <= refereeCount; i++) {
+            const ref = refereeState[i];
+            if (!ref) continue;
+
+            ref.staleWarned = false;
+            ref.imbalanceSince = 0;
+            document.getElementById(`refScoreRed${i}`)?.closest(".referee-card")?.classList.remove("stale-warning");
+        }
+    }
+
     function renderReferees() {
         const refereesGrid = document.getElementById("refereesGrid");
         refereesGrid.innerHTML = "";
@@ -1567,7 +1581,7 @@
         authReferee, openAuthModal, closeAuthModal, closeAuthModalOnBackdrop, copyAuthUrl,
         markRefereeConnected, updateRefereeScore, editRefereeScore,
         toggleRefereeEnabled, resetRefereeScore, subtractPointFromAllReferees,
-        notifyRefereeScore, recalculateMainScore,
+        notifyRefereeScore, recalculateMainScore, clearRefereeStaleWarnings,
 
         // misc
         showToast

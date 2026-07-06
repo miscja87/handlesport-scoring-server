@@ -1321,6 +1321,7 @@
     function performResetAll() {
         stopTimer();
         SharedAdmin.closeInfoModal();
+        SharedAdmin.clearRefereeStaleWarnings();
         resetDoctorTimers();
 
         isBreakPhase = false;

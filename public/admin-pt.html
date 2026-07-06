@@ -1563,6 +1563,7 @@
 
     function performResetAll() {
         SharedAdmin.closeInfoModal();
+        SharedAdmin.clearRefereeStaleWarnings();
 
         document.getElementById("roundIndicator").textContent = "1";
         patternNameDisplay.textContent = patternPlaceholderText();
