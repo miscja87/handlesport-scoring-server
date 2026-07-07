@@ -360,9 +360,11 @@
     <!-- TOP BAR -->
     <div class="topbar">
         <div class="ring-title">RING <span id="ringNumber">1</span> - <span class="event-name" id="eventName">Test Event</span>
-            <button class="display-toggle-btn" onclick="SharedAdmin.toggleDisplayWindow()" id="displayToggleBtn">📺 OPEN DISPLAY</button>
-            <button class="display-toggle-btn" onclick="SharedAdmin.downloadSessionLog()">📄 DOWNLOAD LOG</button>
-            <button class="display-toggle-btn" id="serialToggleBtn" onclick="SharedAdmin.openSerialModal()">🔌 SERIAL</button>
+            <span class="toolbar-group">
+                <button class="display-toggle-btn" onclick="SharedAdmin.toggleDisplayWindow()" id="displayToggleBtn">📺 OPEN DISPLAY</button>
+                <button class="display-toggle-btn" onclick="SharedAdmin.downloadSessionLog()">📄 DOWNLOAD LOG</button>
+                <button class="display-toggle-btn" id="serialToggleBtn" onclick="SharedAdmin.openSerialModal()">🔌 SERIAL</button>
+            </span>
         </div>
 
         <div class="topbar-row2">

@@ -62,6 +62,34 @@ body {
 }
 .display-toggle-btn:active { filter: brightness(1.2); }
 
+/* ── TOOLBAR GROUP: merges the loose action buttons (display, log,
+   serial, team sparring...) into one segmented capsule instead of
+   scattering them across the title row ── */
+.toolbar-group {
+    display: inline-flex;
+    align-items: stretch;
+    margin-left: 16px;
+    vertical-align: middle;
+    background: #20283d;
+    border: 1px solid #3a4560;
+    border-radius: 6px;
+    overflow: hidden;
+}
+.toolbar-group .display-toggle-btn {
+    margin-left: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+}
+.toolbar-group .display-toggle-btn:not(:last-child) {
+    border-right: 1px solid #3a4560;
+}
+.toolbar-group .display-toggle-btn:hover { background: #2a3550; }
+.toolbar-group .display-toggle-btn.active {
+    background: #2a9a5a;
+    color: white;
+}
+
 /* ── TOPBAR FIELDS (generic numeric field + label) ── */
 .topbar-fields {
     display: flex;
