@@ -1077,7 +1077,32 @@
         });
 
         if (currentRound >= totalRounds) {
+            if (teamSparringEnabled) {
+                // The winner is decided on the team total, not just this
+                // last round — fold it in, then let the main score display
+                // (and everything downstream that reads it: the winner
+                // modal, confirmWinner/confirmTie, notifyMatchUpdate) show
+                // the accumulated total from here on.
+                const redVotes = parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0;
+                const blueVotes = parseInt(document.getElementById("mainScoreRight")?.textContent) || 0;
+                const teamRedEl = document.getElementById("teamScoreRed");
+                const teamBlueEl = document.getElementById("teamScoreBlue");
+                const totalRed = (parseInt(teamRedEl.textContent) || 0) + redVotes;
+                const totalBlue = (parseInt(teamBlueEl.textContent) || 0) + blueVotes;
+
+                teamRedEl.textContent = totalRed;
+                teamBlueEl.textContent = totalBlue;
+                document.getElementById("mainScoreLeft").textContent = totalRed;
+                document.getElementById("mainScoreRight").textContent = totalBlue;
+                pushDisplayUpdateSP();
+            }
+
             showWinnerModal();
+            return;
+        }
+
+        if (teamSparringEnabled) {
+            showTeamSparringRoundEndModal(currentRound);
             return;
         }
 
@@ -1087,6 +1112,61 @@
             "START BREAK",
             startBreak
         );
+    }
+
+    // Team Sparring: unlike the standard flow, each round is a different
+    // fighter, so scores don't carry over into the next round. Whatever the
+    // round's majority tally was (e.g. 3-1) gets folded into the running
+    // team score first, then everything round-specific resets — but never
+    // the round counter, team score, or Team Sparring's round/break
+    // settings themselves.
+    function showTeamSparringRoundEndModal(currentRound) {
+        const redVotes = parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0;
+        const blueVotes = parseInt(document.getElementById("mainScoreRight")?.textContent) || 0;
+
+        SharedAdmin.showInfoModal(
+            `Round ${currentRound} finished`,
+            `Adds ${redVotes}-${blueVotes} to the team score, resets this round's scores, then starts the break.`,
+            "RESET & START BREAK",
+            () => {
+                const teamRedEl = document.getElementById("teamScoreRed");
+                const teamBlueEl = document.getElementById("teamScoreBlue");
+                teamRedEl.textContent = (parseInt(teamRedEl.textContent) || 0) + redVotes;
+                teamBlueEl.textContent = (parseInt(teamBlueEl.textContent) || 0) + blueVotes;
+
+                resetRoundScoresForTeamSparring();
+                pushDisplayUpdateSP();
+                startBreak();
+            },
+            { cancelText: "Not yet" }
+        );
+    }
+
+    // Clears the current round's score, referees and warnings/penalties —
+    // deliberately narrower than performResetAll(): it never touches the
+    // round counter, the team score, or Team Sparring's round/break settings.
+    function resetRoundScoresForTeamSparring() {
+        ["wScoreLeft", "wScoreRight", "pScoreLeft", "pScoreRight", "mainScoreLeft", "mainScoreRight"].forEach(id => {
+            document.getElementById(id).textContent = "0";
+        });
+
+        const refereeCount = SharedAdmin.getRefereeCount();
+        const refereeState = SharedAdmin.getRefereeState();
+        for (let i = 1; i <= refereeCount; i++) {
+            if (!refereeState[i]) continue;
+            refereeState[i].score = { red: 0, blue: 0 };
+
+            const redBox = document.getElementById(`refScoreRed${i}`);
+            const blueBox = document.getElementById(`refScoreBlue${i}`);
+            if (redBox) redBox.textContent = "0";
+            if (blueBox) blueBox.textContent = "0";
+
+            if (refereeState[i].connected) {
+                SharedAdmin.notifyRefereeScore(i, refereeState[i].score);
+            }
+        }
+
+        SharedAdmin.clearRefereeStaleWarnings();
     }
 
     function startBreak() {
@@ -1420,7 +1500,8 @@
         renderTimer();
         setButtonLabel("START", "▶");
 
-        ["wScoreLeft", "wScoreRight", "pScoreLeft", "pScoreRight", "mainScoreLeft", "mainScoreRight"].forEach(id => {
+        ["wScoreLeft", "wScoreRight", "pScoreLeft", "pScoreRight", "mainScoreLeft", "mainScoreRight",
+            "teamScoreRed", "teamScoreBlue"].forEach(id => {
             document.getElementById(id).textContent = "0";
         });
 
