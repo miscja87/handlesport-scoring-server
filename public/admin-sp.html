@@ -16,14 +16,40 @@
 
         /* ── WINNER MODAL extras (reuses .info-modal shell from shared CSS) ── */
         .winner-modal-score {
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
             font-size: 36px;
             font-weight: 900;
             color: white;
-            margin: 4px 0 16px;
+            margin: 4px 0 4px;
         }
         .winner-modal-score .red-text  { color: #e05a5a; }
         .winner-modal-score .blue-text { color: #4a9fd8; }
+        .winner-modal-score .wm-sep { color: #5a6480; font-size: 24px; }
+        .wm-score-adj {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #3a4560;
+            background: #252d3f;
+            color: #c8ccd8;
+            font-size: 16px;
+            font-weight: 900;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .wm-score-adj:active { filter: brightness(1.3); }
+        .winner-modal-forced-hint {
+            display: none;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            color: #e0b400;
+            margin: 0 0 16px;
+        }
+        .winner-modal-forced-hint.visible { display: block; }
         .winner-btn-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -620,7 +646,16 @@
         <div class="info-modal-body" id="winnerModalMessage">
             All rounds have been completed.
         </div>
-        <div class="winner-modal-score" id="winnerModalScore"></div>
+        <div class="winner-modal-score">
+            <button class="wm-score-adj" onclick="adjustWinnerScore('red', -1)">−</button>
+            <span class="red-text" id="winnerScoreRedVal">0</span>
+            <button class="wm-score-adj" onclick="adjustWinnerScore('red', 1)">+</button>
+            <span class="wm-sep">—</span>
+            <button class="wm-score-adj" onclick="adjustWinnerScore('blue', -1)">−</button>
+            <span class="blue-text" id="winnerScoreBlueVal">0</span>
+            <button class="wm-score-adj" onclick="adjustWinnerScore('blue', 1)">+</button>
+        </div>
+        <div class="winner-modal-forced-hint" id="winnerModalForcedHint">⚠ Score adjusted manually</div>
         <div class="winner-btn-row">
             <button class="winner-btn red" id="winnerBtnRed" onclick="confirmWinner('red')">RED WINS</button>
             <button class="winner-btn blue" id="winnerBtnBlue" onclick="confirmWinner('blue')">BLUE WINS</button>
@@ -629,7 +664,7 @@
             <button class="winner-btn tie" id="winnerBtnTie" onclick="confirmTie()">TIE</button>
         </div>
         <div class="winner-cancel-row">
-            <button class="winner-cancel-btn" onclick="closeWinnerModal()">Cancel — review scores first</button>
+            <button class="winner-cancel-btn" onclick="cancelWinnerModal()">Cancel — review scores first</button>
         </div>
     </div>
 </div>
@@ -1227,21 +1262,52 @@
     }
 
     // ── WINNER MODAL ──
+    // The score shown here is editable (adjustWinnerScore) so the admin can
+    // force a result — e.g. retirement/injury/disqualification — without
+    // waiting for the referees to reach that tally. refereeComputedScore
+    // remembers the original majority-vote score so the modal can flag when
+    // it's been manually overridden.
+    let refereeComputedScore = { red: 0, blue: 0 };
+
     function showWinnerModal(matchEndedNaturally = true) {
         const redScore = parseInt(document.getElementById("mainScoreLeft").textContent) || 0;
         const blueScore = parseInt(document.getElementById("mainScoreRight").textContent) || 0;
+        refereeComputedScore = { red: redScore, blue: blueScore };
 
-        const scoreEl = document.getElementById("winnerModalScore");
+        const intro = matchEndedNaturally
+            ? "All rounds have been completed."
+            : "Set the winner now (e.g. retirement, injury, disqualification) — or adjust the score above first to force a result.";
+        document.getElementById("winnerModalMessage").dataset.intro = intro;
+
+        updateWinnerModalDisplay();
+        document.getElementById("winnerModalOverlay").classList.remove("hidden");
+    }
+
+    function adjustWinnerScore(side, delta) {
+        const elId = side === "red" ? "mainScoreLeft" : "mainScoreRight";
+        const el = document.getElementById(elId);
+        const next = Math.max(0, (parseInt(el.textContent) || 0) + delta);
+        el.textContent = next;
+        pushDisplayUpdateSP();
+        updateWinnerModalDisplay();
+    }
+
+    function updateWinnerModalDisplay() {
+        const redScore = parseInt(document.getElementById("mainScoreLeft").textContent) || 0;
+        const blueScore = parseInt(document.getElementById("mainScoreRight").textContent) || 0;
+
+        document.getElementById("winnerScoreRedVal").textContent = redScore;
+        document.getElementById("winnerScoreBlueVal").textContent = blueScore;
+
+        const forced = redScore !== refereeComputedScore.red || blueScore !== refereeComputedScore.blue;
+        document.getElementById("winnerModalForcedHint").classList.toggle("visible", forced);
+
         const messageEl = document.getElementById("winnerModalMessage");
+        const intro = messageEl.dataset.intro || "";
         const redBtn = document.getElementById("winnerBtnRed");
         const blueBtn = document.getElementById("winnerBtnBlue");
         const tieBtn = document.getElementById("winnerBtnTie");
 
-        const intro = matchEndedNaturally
-            ? "All rounds have been completed."
-            : "Set the winner now (e.g. retirement, injury, disqualification).";
-
-        scoreEl.innerHTML = `<span class="red-text">${redScore}</span> — <span class="blue-text">${blueScore}</span>`;
         redBtn.classList.remove("suggested");
         blueBtn.classList.remove("suggested");
         tieBtn.classList.remove("suggested");
@@ -1256,8 +1322,6 @@
             messageEl.textContent = `${intro} BLUE is currently ahead — confirm the winner below.`;
             blueBtn.classList.add("suggested");
         }
-
-        document.getElementById("winnerModalOverlay").classList.remove("hidden");
     }
 
     function confirmWinner(color) {
@@ -1381,8 +1445,19 @@
         document.getElementById("winnerModalOverlay").classList.add("hidden");
     }
 
+    // Cancelling (as opposed to confirming a winner/tie) discards any manual
+    // score adjustment made while reviewing — otherwise an accidental +/-
+    // tap would silently overwrite the real referee-computed score without
+    // the admin ever confirming a winner.
+    function cancelWinnerModal() {
+        document.getElementById("mainScoreLeft").textContent = refereeComputedScore.red;
+        document.getElementById("mainScoreRight").textContent = refereeComputedScore.blue;
+        pushDisplayUpdateSP();
+        closeWinnerModal();
+    }
+
     function closeWinnerModalOnBackdrop(event) {
-        if (event.target.id === "winnerModalOverlay") closeWinnerModal();
+        if (event.target.id === "winnerModalOverlay") cancelWinnerModal();
     }
 
     // ── ROUND TIMER CONTROLS ──
