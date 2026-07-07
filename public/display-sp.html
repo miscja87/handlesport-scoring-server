@@ -78,6 +78,39 @@
             animation: scoreBump 0.5s ease-out !important;
         }
 
+        /* ── TEAM SPARRING: small team-round score badge in the corner of
+           each big score (lives beside .main-score, never inside it, so it
+           can't get wiped out by the plain textContent = red/blue writes
+           elsewhere), only shown while Team Sparring is active. ── */
+        .main-score-wrap {
+            position: relative;
+        }
+        .team-score-badge {
+            position: absolute;
+            top: 2vh;
+            background: rgba(0,0,0,0.45);
+            border: 0.25vh solid rgba(255,255,255,0.6);
+            border-radius: 1vh;
+            padding: 0.3vh 1.4vh;
+            font-size: 4vh;
+            font-weight: 900;
+            color: white;
+        }
+        /* .main-score-wrap hugs just the digit itself (its width varies with
+           how wide the number is), so "right/left: Xvh" measured from that
+           narrow box doesn't reliably land "toward the timer". Anchoring at
+           100% (the digit's own edge) plus a small margin does instead —
+           blue's badge sits just past its right edge, red's just past its
+           left edge, both toward the center regardless of digit width. */
+        #teamScoreBlue {
+            left: 100%;
+            margin-left: 0.8vh;
+        }
+        #teamScoreRed {
+            right: 100%;
+            margin-right: 0.8vh;
+        }
+
         .round-indicator {
             font-size: 6.5vh;
             font-weight: 900;
@@ -210,7 +243,10 @@
                     <span class="stat-value" id="pBlue">0</span>
                 </div>
             </div>
-            <div class="main-score blue-text blue-score" id="mainScoreBlue">0</div>
+            <div class="main-score-wrap">
+                <div class="main-score blue-text blue-score" id="mainScoreBlue">0</div>
+                <div class="team-score-badge hidden" id="teamScoreBlue">0</div>
+            </div>
         </div>
 
         <div class="timer-ring-wrap">
@@ -222,7 +258,10 @@
         </div>
 
         <div class="score-side-group red-side-group">
-            <div class="main-score red-text red-score" id="mainScoreRed">0</div>
+            <div class="main-score-wrap">
+                <div class="main-score red-text red-score" id="mainScoreRed">0</div>
+                <div class="team-score-badge hidden" id="teamScoreRed">0</div>
+            </div>
             <div class="side-stat-col">
                 <div class="stat-block red-w">
                     <span class="stat-value" id="wRed">0</span>
@@ -436,6 +475,15 @@
         }
         if (payload.score) {
             applyMainScore(payload.score.red ?? 0, payload.score.blue ?? 0);
+        }
+
+        if (payload.teamSparringEnabled !== undefined) {
+            document.getElementById("teamScoreRed").classList.toggle("hidden", !payload.teamSparringEnabled);
+            document.getElementById("teamScoreBlue").classList.toggle("hidden", !payload.teamSparringEnabled);
+        }
+        if (payload.teamScore) {
+            document.getElementById("teamScoreRed").textContent = payload.teamScore.red ?? 0;
+            document.getElementById("teamScoreBlue").textContent = payload.teamScore.blue ?? 0;
         }
     }
 

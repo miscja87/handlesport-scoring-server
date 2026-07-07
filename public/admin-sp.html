@@ -103,22 +103,52 @@
             align-items: center;
             margin-bottom: 14px;
         }
+        .main-score-wrap {
+            position: relative;
+        }
+        .main-score-wrap.red  { grid-column: 1 / 5; }
+        .main-score-wrap.blue { grid-column: 7 / 11; }
+
         .main-score {
             display: flex;
             align-items: center;
             justify-content: center;
+            width: 100%;
             height: 100px;
             border-radius: 8px;
             font-size: 64px;
             font-weight: 900;
             color: white;
-            grid-column: 1 / 5;
             cursor: pointer;
             transition: filter 0.1s;
         }
         .main-score:active { filter: brightness(1.15); }
         .main-score.red  { background: #cc0000; }
-        .main-score.blue { background: #1a6fa8; grid-column: 7 / 11; }
+        .main-score.blue { background: #1a6fa8; }
+
+        /* ── TEAM SPARRING: small team-round score badge in the corner of
+           each big score box (lives in the wrap, as a sibling of
+           .main-score — never a child, so it can't corrupt the
+           textContent-based score reads/writes elsewhere), only shown
+           while Team Sparring is active. ── */
+        .team-score-badge {
+            position: absolute;
+            top: 8px;
+            right: 20px; /* red box sits on the left, so "right" points toward the center */
+            background: rgba(0,0,0,0.35);
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 8px;
+            padding: 4px 12px;
+            font-size: 26px;
+            font-weight: 900;
+            color: white;
+            pointer-events: none;
+        }
+        /* Blue box sits on the right, so its badge goes on the left instead — both end up toward the center. */
+        #teamScoreBlue {
+            left: 20px;
+            right: auto;
+        }
         .round-label {
             text-align: center;
             color: #a0aab8;
@@ -290,6 +320,7 @@
             <button class="display-toggle-btn" onclick="SharedAdmin.toggleDisplayWindow()" id="displayToggleBtn">📺 OPEN DISPLAY</button>
             <button class="display-toggle-btn" onclick="SharedAdmin.downloadSessionLog()">📄 DOWNLOAD LOG</button>
             <button class="display-toggle-btn" id="serialToggleBtn" onclick="SharedAdmin.openSerialModal()">🔌 SERIAL</button>
+            <button class="display-toggle-btn" id="teamSparringToggleBtn" onclick="toggleTeamSparring()">👥 TEAM SPARRING</button>
         </div>
 
         <div class="topbar-row2">
@@ -357,9 +388,15 @@
 
     <!-- MAIN SCORE -->
     <div class="main-score-row">
-        <div class="main-score red" id="mainScoreLeft" onclick="showWinnerModal(false)">0</div>
+        <div class="main-score-wrap red">
+            <div class="main-score red" id="mainScoreLeft" onclick="showWinnerModal(false)">0</div>
+            <div class="team-score-badge hidden" id="teamScoreRed">0</div>
+        </div>
         <div class="round-label">ROUND<br><span id="roundIndicator">1</span>/<span id="roundTotal">1</span></div>
-        <div class="main-score blue" id="mainScoreRight" onclick="showWinnerModal(false)">0</div>
+        <div class="main-score-wrap blue">
+            <div class="main-score blue" id="mainScoreRight" onclick="showWinnerModal(false)">0</div>
+            <div class="team-score-badge hidden" id="teamScoreBlue">0</div>
+        </div>
     </div>
 
     <!-- W ROW -->
@@ -612,6 +649,7 @@
     let isRunning = false;
     let isBreakPhase = false;
     let goldenScoreActive = false;
+    let teamSparringEnabled = false;
 
     // ── DOCTOR TIMER STATE ──
     // Cumulative remaining seconds per color, persists across pause/resume within a match.
@@ -635,6 +673,49 @@
     const buzzSound = document.getElementById('buzz_sound');
     const beepSound = document.getElementById('beep_sound');
     const clickSound = document.getElementById('click_sound');
+
+    // ── TEAM SPARRING ──
+    // Each round is fought by a different team member, so rounds are set to
+    // 3 and the break becomes a short technical pause (10s) just to swap
+    // fighters — not a real rest break. Further behavior lands separately.
+    function applyTeamSparring(enabled) {
+        teamSparringEnabled = enabled;
+        document.getElementById("teamSparringToggleBtn").classList.toggle("active", teamSparringEnabled);
+        SharedAdmin.logEvent("team_sparring_toggled", { enabled: teamSparringEnabled });
+
+        const roundCountInput = document.getElementById("roundCount");
+        roundCountInput.value = teamSparringEnabled ? 3 : 1;
+        roundCountInput.dispatchEvent(new Event("change"));
+
+        document.getElementById("breakDuration").value = teamSparringEnabled ? 10 : 60;
+
+        document.getElementById("teamScoreRed").classList.toggle("hidden", !teamSparringEnabled);
+        document.getElementById("teamScoreBlue").classList.toggle("hidden", !teamSparringEnabled);
+        if (!teamSparringEnabled) {
+            document.getElementById("teamScoreRed").textContent = "0";
+            document.getElementById("teamScoreBlue").textContent = "0";
+        }
+
+        pushDisplayUpdateSP();
+        SharedAdmin.showToast(teamSparringEnabled ? "Team Sparring enabled — 3 rounds, 10s breaks" : "Team Sparring disabled — back to 1 round, 60s break");
+    }
+
+    // Disabling is immediate; enabling needs confirmation first (same
+    // pattern as TRAD.SPARRING in admin-pt.html).
+    function toggleTeamSparring() {
+        if (teamSparringEnabled) {
+            applyTeamSparring(false);
+            return;
+        }
+
+        SharedAdmin.showInfoModal(
+            "Enable TEAM SPARRING?",
+            "Enable TEAM SPARRING Mode?",
+            "ENABLE",
+            () => applyTeamSparring(true),
+            { success: true, cancelText: "Cancel" }
+        );
+    }
 
     // Keeps the round START/PAUSE/RESUME button, the two doctor-timer
     // buttons and the Golden Score button mutually exclusive — only one of
@@ -679,10 +760,15 @@
             totalSeconds: totalSeconds,
             isRunning: isRunning,
             goldenScoreActive: goldenScoreActive,
+            teamSparringEnabled: teamSparringEnabled,
 
             score: {
                 red: parseInt(document.getElementById("mainScoreLeft")?.textContent) || 0,
                 blue: parseInt(document.getElementById("mainScoreRight")?.textContent) || 0
+            },
+            teamScore: {
+                red: parseInt(document.getElementById("teamScoreRed")?.textContent) || 0,
+                blue: parseInt(document.getElementById("teamScoreBlue")?.textContent) || 0
             },
             warnings: {
                 red: parseInt(document.getElementById("wScoreLeft")?.textContent) || 0,
