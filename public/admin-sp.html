@@ -292,6 +292,22 @@
         .state-text.stop { color: #e53e3e; }
         .state-text.play { color: #38a169; }
 
+        /* ── ACTIVE MODE BADGES ── small pills next to STATE so it's
+           obvious at a glance which special modes are on, instead of
+           having to scan the whole screen for each toggle's own color. */
+        .mode-badge {
+            background: #3a4560;
+            color: white;
+            font-size: 11px;
+            font-weight: 900;
+            letter-spacing: 0.5px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        .mode-badge.gs { background: #e0b400; color: #1a1f2e; }
+        .mode-badge.team { background: #2a7a2a; }
+
         @media (max-width: 900px) {
             .score-grid-row {
                 grid-template-columns: repeat(2, 1fr);
@@ -432,15 +448,17 @@
     <!-- ACTION ROW: doctor timers + state indicator at same height -->
     <div class="action-row" style="margin-bottom: 16px; align-items: center;">
         <button class="action-btn red" id="doctorTimerLeftBtn" style="grid-column: 2 / 5;">
-            <span class="icon">👤</span> START DOCTOR TIMER RED
+            <span class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="vertical-align:-0.15em"><path d="M12 12c2.76 0 5-2.46 5-5.5S14.76 1 12 1 7 3.46 7 6.5 9.24 12 12 12zm0 2.5c-3.34 0-10 1.68-10 5v2.5h20V19.5c0-3.32-6.66-5-10-5z"/></svg></span> START DOCTOR TIMER RED
         </button>
         <div class="state-row" style="grid-column: 5 / 7; margin-bottom: 0;">
             <span>STATE</span>
             <span class="state-dot" id="stateDot"></span>
             <span class="state-text stop" id="stateText">STOP</span>
+            <span class="mode-badge gs hidden" id="modeBadgeGS">GS</span>
+            <span class="mode-badge team hidden" id="modeBadgeTeam">TEAM</span>
         </div>
         <button class="action-btn blue" id="doctorTimerRightBtn" style="grid-column: 7 / 10;">
-            <span class="icon">👤</span> START DOCTOR TIMER BLUE
+            <span class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="vertical-align:-0.15em"><path d="M12 12c2.76 0 5-2.46 5-5.5S14.76 1 12 1 7 3.46 7 6.5 9.24 12 12 12zm0 2.5c-3.34 0-10 1.68-10 5v2.5h20V19.5c0-3.32-6.66-5-10-5z"/></svg></span> START DOCTOR TIMER BLUE
         </button>
     </div>
 
@@ -454,9 +472,9 @@
     <!-- NEXT MATCH -->
     <div class="next-match-section">
         <div class="next-match-row">
-            <div class="next-bar red"><span class="icon">👤</span><span id="nextMatchRed">RED</span></div>
+            <div class="next-bar red"><span class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="vertical-align:-0.15em"><path d="M12 12c2.76 0 5-2.46 5-5.5S14.76 1 12 1 7 3.46 7 6.5 9.24 12 12 12zm0 2.5c-3.34 0-10 1.68-10 5v2.5h20V19.5c0-3.32-6.66-5-10-5z"/></svg></span><span id="nextMatchRed">RED</span></div>
             <div class="next-label">NEXT MATCH</div>
-            <div class="next-bar blue"><span id="nextMatchBlue">BLUE</span><span class="icon">👤</span></div>
+            <div class="next-bar blue"><span id="nextMatchBlue">BLUE</span><span class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="vertical-align:-0.15em"><path d="M12 12c2.76 0 5-2.46 5-5.5S14.76 1 12 1 7 3.46 7 6.5 9.24 12 12 12zm0 2.5c-3.34 0-10 1.68-10 5v2.5h20V19.5c0-3.32-6.66-5-10-5z"/></svg></span></div>
         </div>
     </div>
 
@@ -696,6 +714,8 @@
             document.getElementById("teamScoreBlue").textContent = "0";
         }
 
+        document.getElementById("modeBadgeTeam").classList.toggle("hidden", !teamSparringEnabled);
+
         pushDisplayUpdateSP();
         SharedAdmin.showToast(teamSparringEnabled ? "Team Sparring enabled — 3 rounds, 10s breaks" : "Team Sparring disabled — back to 1 round, 60s break");
     }
@@ -735,6 +755,8 @@
         gsBtn.disabled = !goldenScoreActive && (!!activeDoctorColor || isRunning);
         gsBtn.classList.toggle("gs-active", goldenScoreActive);
         gsBtn.title = goldenScoreActive ? "Stop Golden Score" : "Start Golden Score";
+
+        document.getElementById("modeBadgeGS").classList.toggle("hidden", !goldenScoreActive);
     }
 
     // Builds and sends the SP-specific display payload (shared base + timer/
