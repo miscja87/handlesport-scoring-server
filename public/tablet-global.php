@@ -16,15 +16,15 @@
  * Unlike the local tablet.html (which fetches this configuration from our
  * own Express server via /api/login/referee), here it's injected server-side
  * by PHP — this page never talks to the local server at all, only to
- * Firebase/Firestore, since it can't assume it's on the same network as the
- * admin's machine.
+ * Firebase/Firestore (via js/scoring/common.firestore.js), since it can't
+ * assume it's on the same network as the admin's machine.
  */
 $referee       = $referee       ?? 1;
-$eventId       = $eventId       ?? "";
+$event         = $event       ?? "";
 $ringId        = $ringId        ?? "";
 $buttons       = $buttons       ?? [3, 2, 1];
 $defaultButton = $defaultButton ?? 1;
-$startScore    = $startScore    ?? 10;
+$startScore    = $startScore    ?? 0;
 ?>
 <!DOCTYPE html>
 <html lang="it">
@@ -237,12 +237,14 @@ $startScore    = $startScore    ?? 10;
 </head>
 <body>
 
-    <!-- Config injected by the PHP controller — read by the script below
-         instead of fetching it from a local server, since this page may run
-         on a completely different network than the admin. -->
+    <!-- common.firestore.js reads event/ring straight out of these two
+         fields via jQuery ($('#id_event').val()) — the IDs must match
+         exactly, they're not something this page gets to choose. -->
+    <input type="hidden" id="id_event" value="<?php echo (int)$event; ?>">
+    <input type="hidden" id="id_ring" value="<?php echo (int)$ring; ?>">
+
+    <!-- Config this page itself needs — read directly by the script below. -->
     <input type="hidden" id="cfgReferee" value="<?php echo (int)$referee; ?>">
-    <input type="hidden" id="cfgEvent" value="<?php echo (int)($eventId); ?>">
-    <input type="hidden" id="cfgRing" value="<?php echo (int)($ringId); ?>">
     <input type="hidden" id="cfgButtons" value="<?php echo htmlspecialchars(json_encode($buttons)); ?>">
     <input type="hidden" id="cfgDefaultButton" value="<?php echo htmlspecialchars($defaultButton); ?>">
     <input type="hidden" id="cfgStartScore" value="<?php echo htmlspecialchars($startScore); ?>">
@@ -291,93 +293,52 @@ $startScore    = $startScore    ?? 10;
 
     <div class="toast" id="toast"></div>
 
+    <!-- common.firestore.js expects jQuery to already be available (it reads
+         #id_event/#id_ring via $(...) at module-eval time) — remove this if
+         the surrounding page layout already loads jQuery globally, otherwise
+         keep it, and it MUST come before the module script below. -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
-    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-functions.js";
-    import { getAuth, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
-
-    // Same Firebase project as the admin app (firestore.js) — this page
-    // writes to the exact same "score/event_X/ring_Y/referee_Z" docs the
-    // admin's Firestore listener reads from.
-    const firebaseConfig = {
-        apiKey: "AIzaSyDeZGGdAEZ8yWOTm4GnZsWehpApjnXhOYQ",
-        authDomain: "handlesport-2k25.firebaseapp.com",
-        projectId: "handlesport-2k25",
-        storageBucket: "handlesport-2k25.firebasestorage.app",
-        messagingSenderId: "199277353127",
-        appId: "1:199277353127:web:6fe36096f315eba357e382",
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
-    const functions = getFunctions(app);
+    import {
+        db, doc, onSnapshot, statusRef,
+        loginAsReferee, updateRefereeDoc, incrementRefereeScore, loadRefereeDoc, getRefereeDoc
+    } from "<?php echo URL_PATH . 'js/scoring/common.firestore.js'; ?>";
 
     // ── CONFIG (injected by PHP via hidden inputs) ──
     const referee = parseInt(document.getElementById("cfgReferee").value);
-    const eventId = document.getElementById("cfgEvent").value;
-    const ringId = document.getElementById("cfgRing").value;
+    const ringId = document.getElementById("id_ring").value;
 
     /* Score params */
     const ACTION_UPDATE_SCORE = "update_score";
-    const STATUS_OK = "ok";
 
     // "left" and "right" are the two visual sides — independent from red/blue
     // leftColor = color currently on the left side ("red" or "blue")
     let leftColor = "red";
     let scores = { red: 0, blue: 0 };
-    let lastSentScore = null; // distinguishes our own writes echoing back from genuine external changes
-    let history = { red: [], blue: [] };
+    let history = { red: [], blue: [] }; // deltas applied, so undo can send their inverse
     let mode = 3;
     let state = "stop";
     let buttons = JSON.parse(document.getElementById("cfgButtons").value || "[3,2,1]");
     let defaultButton = parseFloat(document.getElementById("cfgDefaultButton").value) || buttons[buttons.length - 1];
     const startScore = parseFloat(document.getElementById("cfgStartScore").value) || 0;
 
-    function refereeDocRef() {
-        return doc(db, "score", `event_${eventId}`, `ring_${ringId}`, `referee_${referee}`);
-    }
-    function statusDocRef() {
-        return doc(db, "score", `event_${eventId}`, `ring_${ringId}`, "status");
-    }
-
-    function waitForAuthInitialized(auth) {
-        return new Promise((resolve, reject) => {
-            const unsubscribe = onAuthStateChanged(auth, (user) => {
-                unsubscribe();
-                resolve(user);
-            }, (error) => {
-                unsubscribe();
-                reject(error);
-            });
-        });
-    }
-
-    async function loginAsReferee(refereeId) {
-        const uid = `referee_${refereeId}`;
-        const getCustomToken = httpsCallable(functions, "getCustomToken");
-        const result = await getCustomToken({ tokenId: uid, role: "referee", event: `event_${eventId}`, ring: `ring_${ringId}` });
-        const token = result.data.token;
-
-        await signInWithCustomToken(auth, token);
-        await waitForAuthInitialized(auth);
-        await updateDoc(refereeDocRef(), { status: STATUS_OK });
-        console.log("✅ Logged referee " + refereeId + " successful as", auth.currentUser.uid);
-    }
-
     // ── INIT ──
     async function init() {
         try {
+            // loginAsReferee() also sets this referee's Firestore doc status
+            // to CONFIG.STATUS_OK, which is what the admin's server listens
+            // for to close its QR modal and mark the referee connected.
+            console.log(`Logging in as referee ${referee}...`);
             await loginAsReferee(referee);
 
             // Load whatever score is already on the doc (referee reconnecting
             // mid-match) — fall back to the specialty's start score if none.
-            const snap = await getDoc(refereeDocRef());
-            const existing = snap.exists() ? snap.data() : null;
+            // The doc itself is expected to already exist at this point (the
+            // admin's server creates it before handing out this link).
+            const existing = await loadRefereeDoc(referee);
             scores.red = parseFloat(existing?.score?.red ?? startScore) || 0;
             scores.blue = parseFloat(existing?.score?.blue ?? startScore) || 0;
-            lastSentScore = { ...scores };
 
             document.getElementById("headerLabel").textContent = `Ring ${ringId}, Referee ${referee}`;
 
@@ -398,27 +359,28 @@ $startScore    = $startScore    ?? 10;
             // Match PLAY/STOP — mirrors the local tablet's /stream/clients
             // ACTION_UPDATE_STATE listener, sourced from the same status doc
             // match.js already writes to on every round start/stop.
-            onSnapshot(statusDocRef(), (statusSnap) => {
+            onSnapshot(statusRef, (statusSnap) => {
                 if (!statusSnap.exists()) return;
                 applyState(statusSnap.data().state);
             });
 
             // External corrections (RESET from admin, LEVEL 0 override, etc.)
             // — mirrors the local tablet's ACTION_RESET_SCORE handling. Skips
-            // updates that just echo back what we ourselves last wrote.
-            onSnapshot(refereeDocRef(), (refSnap) => {
+            // updates that just echo back the optimistic value we already
+            // applied locally for our own last add/undo.
+            const refDocRef = doc(db, "score", getRefereeDoc(referee));
+            onSnapshot(refDocRef, (refSnap) => {
                 if (!refSnap.exists()) return;
                 const data = refSnap.data();
                 if (!data.score) return;
 
                 const red = parseFloat(data.score.red) || 0;
                 const blue = parseFloat(data.score.blue) || 0;
-                const isOwnEcho = lastSentScore && red === lastSentScore.red && blue === lastSentScore.blue;
+                const isOwnEcho = red === scores.red && blue === scores.blue;
                 if (isOwnEcho) return;
 
                 scores.red = red;
                 scores.blue = blue;
-                lastSentScore = { red, blue };
                 history.red = [];
                 history.blue = [];
                 updateDisplay();
@@ -508,19 +470,25 @@ $startScore    = $startScore    ?? 10;
         leftColor = leftColor === "red" ? "blue" : "red";
         bindButtons();
         updateDisplay();
-        sendScore();
     }
 
     // ── SCORE ──
+    // Uses incrementRefereeScore (a Firestore transaction that adds the
+    // delta to whatever's currently stored) instead of writing an absolute
+    // value — safer against races with external corrections. Note: if an
+    // external reset/zero happens between an add and its undo, the undo's
+    // negative delta isn't clamped by the transaction and could in theory
+    // push the stored score below 0 — a pre-existing property of
+    // incrementRefereeScore, not something this page can fix on its own.
     async function addScore(color, points) {
         if (state === "stop") {
             showToast("Scoring blocked — state STOP");
             return;
         }
-        history[color].push(scores[color]);
+        history[color].push(points);
         scores[color] = Math.max(0, parseFloat((scores[color] + points).toFixed(1)));
         updateDisplay();
-        await sendScore();
+        await sendDelta(color, points);
     }
 
     async function undoScore(color) {
@@ -532,30 +500,29 @@ $startScore    = $startScore    ?? 10;
             showToast("No actions to undo");
             return;
         }
-        scores[color] = history[color].pop();
+        const lastDelta = history[color].pop();
+        scores[color] = Math.max(0, parseFloat((scores[color] - lastDelta).toFixed(1)));
         updateDisplay();
-        await sendScore();
+        await sendDelta(color, -lastDelta);
     }
 
-    async function reload() {
-        location.reload();
-    }
-
-    async function sendScore() {
+    async function sendDelta(color, delta) {
         try {
             // Not supported on iOS Safari (navigator.vibrate is undefined
             // there) — calling it unconditionally throws and skips the
             // write below entirely, which is why scores failed to send.
             if (navigator.vibrate) navigator.vibrate(100);
 
-            lastSentScore = { red: scores.red, blue: scores.blue };
-            await updateDoc(refereeDocRef(), {
-                score: { red: String(scores.red), blue: String(scores.blue) },
-                action: ACTION_UPDATE_SCORE
-            });
+            const redDelta = color === "red" ? delta : 0;
+            const blueDelta = color === "blue" ? delta : 0;
+            await incrementRefereeScore(referee, ACTION_UPDATE_SCORE, redDelta, blueDelta);
         } catch (err) {
             showToast("Error sending score");
         }
+    }
+
+    async function reload() {
+        location.reload();
     }
 
     // ── MODE ──
