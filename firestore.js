@@ -24,7 +24,24 @@ async function loginAsServer(event, ring)
 {
     const uid = `server`
     const getCustomToken = httpsCallable(functions, "getCustomToken");
-    const result = await getCustomToken({ tokenId : uid, role : "server", event : `event_${event}`, ring : `ring_${ring}` });
+
+    // getCustomToken occasionally fails with a transient "functions/internal"
+    // error (Cloud Function cold start) — retry a few times with backoff
+    // before giving up, instead of forcing the admin to restart the app.
+    const maxAttempts = 3;
+    let result;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            result = await getCustomToken({ tokenId : uid, role : "server", event : `event_${event}`, ring : `ring_${ring}` });
+            break;
+        } catch (err) {
+            const isLastAttempt = attempt === maxAttempts;
+            console.warn(`getCustomToken attempt ${attempt}/${maxAttempts} failed: ${err.message}`);
+            if (isLastAttempt) throw err;
+            await new Promise(resolve => setTimeout(resolve, 800 * attempt));
+        }
+    }
+
     const token = result.data.token;
 
     await signInWithCustomToken(auth, token);
