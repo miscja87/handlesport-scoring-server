@@ -480,15 +480,24 @@ $startScore    = $startScore    ?? 0;
     // negative delta isn't clamped by the transaction and could in theory
     // push the stored score below 0 — a pre-existing property of
     // incrementRefereeScore, not something this page can fix on its own.
+    // Sends the CLAMPED delta (what actually changed locally after the 0
+    // floor), never the raw button/undo value — otherwise a press that gets
+    // floored client-side (e.g. score 5, button -10) would still send the
+    // full -10 to incrementRefereeScore's transaction, which doesn't clamp,
+    // leaving Firestore at -5 while the tablet shows 0 until the next
+    // onSnapshot "corrects" it back to the negative value.
     async function addScore(color, points) {
         if (state === "stop") {
             showToast("Scoring blocked — state STOP");
             return;
         }
-        history[color].push(points);
-        scores[color] = Math.max(0, parseFloat((scores[color] + points).toFixed(1)));
+        const before = scores[color];
+        const after = Math.max(0, parseFloat((before + points).toFixed(1)));
+        const actualDelta = parseFloat((after - before).toFixed(1));
+        history[color].push(actualDelta); // store what was actually applied, so undo reverses that, not the raw button value
+        scores[color] = after;
         updateDisplay();
-        await sendDelta(color, points);
+        await sendDelta(color, actualDelta);
     }
 
     async function undoScore(color) {
@@ -501,9 +510,12 @@ $startScore    = $startScore    ?? 0;
             return;
         }
         const lastDelta = history[color].pop();
-        scores[color] = Math.max(0, parseFloat((scores[color] - lastDelta).toFixed(1)));
+        const before = scores[color];
+        const after = Math.max(0, parseFloat((before - lastDelta).toFixed(1)));
+        const actualDelta = parseFloat((after - before).toFixed(1));
+        scores[color] = after;
         updateDisplay();
-        await sendDelta(color, -lastDelta);
+        await sendDelta(color, actualDelta);
     }
 
     async function sendDelta(color, delta) {
