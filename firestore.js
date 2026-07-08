@@ -71,6 +71,24 @@ async function createRefereeDoc(event, ring, refereeId, initialScore, initialSta
     }
 }
 
+// Creates the referee document only if it doesn't exist yet — used when
+// generating a GLOBAL auth link, so re-opening an already-connected
+// referee's QR code doesn't reset their live score/status back to pending
+// (unlike createRefereeDoc above, which always overwrites).
+async function ensureRefereeDoc(event, ring, refereeId, initialScore, initialStatus = 'pending') {
+    const refereeDocName = `event_${event}/ring_${ring}/referee_${refereeId}`;
+    const refereeRef = doc(db, "score", refereeDocName);
+    const refereeDocSnap = await getDoc(refereeRef);
+    if (!refereeDocSnap.exists()) {
+        console.log("✅ Creating document " + refereeDocName);
+        await setDoc(refereeRef, {
+            id: refereeId,
+            status: initialStatus,
+            score: initialScore
+        });
+    }
+}
+
 // Update referee document in Firestore
 async function updateRefereeDoc(event, ring, refereeId, updateData) {
     try {
@@ -195,4 +213,4 @@ function waitForAuthInitialized(auth) {
     });
 }
 
-export { loginAsServer, createRefereeDoc, updateRefereeDoc, deleteRefereeDoc, createStatus, updateStatus, createDetails, updateDetails, listenToRefereeScores, onSnapshot, auth };
+export { loginAsServer, createRefereeDoc, ensureRefereeDoc, updateRefereeDoc, deleteRefereeDoc, createStatus, updateStatus, createDetails, updateDetails, listenToRefereeScores, onSnapshot, auth };

@@ -8,7 +8,7 @@ import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { initScores, getScores, updateScore, deleteScore } from "./scores.js";
 import { createMatch, updateMatchDetails, updateMatchState, getMatchState } from "./match.js";
-import { loginAsServer, createRefereeDoc, updateRefereeDoc, deleteRefereeDoc, listenToRefereeScores, auth } from "./firestore.js";
+import { loginAsServer, createRefereeDoc, ensureRefereeDoc, updateRefereeDoc, deleteRefereeDoc, listenToRefereeScores, auth } from "./firestore.js";
 import { ACTIONS, API_KEY, HANDLESPORT_BACKEND_URL, STATUS } from "./constants.js";
 import { SPECIALTY_CONFIGURATION } from "./specialty.js";
 import {
@@ -47,6 +47,7 @@ let jwtToken = null;
 let level0Enabled = false; // PT "Level 0": while on, any referee button press forces that side's score straight to 0
 let isGlobalMode = false; // GLOBAL: referees write straight to Firestore (any network) instead of POSTing here
 let unsubscribeRefereeScores = null; // teardown for the GLOBAL-mode Firestore listener below
+let globalConnectedReferees = new Set(); // referee ids already broadcast as CONNECTED in GLOBAL mode — avoids re-broadcasting on every later score change
 
 // ── SSE STREAMS ──
 
@@ -124,7 +125,22 @@ app.post("/api/login/admin", async (req, res) => {
             // path the local flow uses — the admin UI doesn't need to know
             // which mode is active.
             if (isGlobalMode) {
+                globalConnectedReferees = new Set();
+
                 unsubscribeRefereeScores = listenToRefereeScores(event, ring, (refereeId, data) => {
+                    // The referee's own device sets its Firestore doc's
+                    // status to "ok" once it finishes authenticating via
+                    // the global link — mirrors what /api/login/referee
+                    // does for LOCAL mode, so the QR modal closes and the
+                    // referee card lights up the same way either way. Only
+                    // fires once per referee — the same doc's status stays
+                    // "ok" on every later score update too.
+                    if (data?.status === "ok" && !globalConnectedReferees.has(refereeId)) {
+                        globalConnectedReferees.add(refereeId);
+                        console.log(`[GLOBAL] Referee ${refereeId} connected`);
+                        broadcastAdmin({ referee: refereeId, action: ACTIONS.CONNECTED });
+                    }
+
                     if (!data?.score) return;
 
                     const updated = updateScore(refereeId, data.action, data.score.red, data.score.blue);
@@ -306,6 +322,16 @@ app.get("/api/tablet/url/:refereeId", async (req, res) => {
     // directly from there, never to this server.
     if (isGlobalMode) {
         try {
+            // The referee's Firestore doc might not exist yet at this point
+            // (nothing else has created it in GLOBAL mode) — make sure it's
+            // there with the specialty's real start score before handing
+            // out the link, otherwise the referee's tablet would attach to
+            // a doc that doesn't exist. Only creates it if missing, so
+            // re-generating the link for an already-connected referee
+            // doesn't reset their live score/status.
+            const startScore = SPECIALTY_CONFIGURATION[specialtyCode].startScore;
+            await ensureRefereeDoc(event, ring, refereeId, { red: startScore, blue: startScore });
+
             const bodyParams = new URLSearchParams({
                 id_event: event,
                 id_ring: ring,
