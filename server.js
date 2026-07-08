@@ -336,7 +336,10 @@ app.get("/api/tablet/url/:refereeId", async (req, res) => {
                 id_event: event,
                 id_ring: ring,
                 id_referee: refereeId,
-                specialty: specialtyCode
+                specialty: specialtyCode,
+                start_score: startScore,
+                buttons: SPECIALTY_CONFIGURATION[specialtyCode].buttons.join(","),
+                default_button: SPECIALTY_CONFIGURATION[specialtyCode].defaultButton
             });
 
             const response = await fetch(`${HANDLESPORT_BACKEND_URL}/scoring/auth`, {
