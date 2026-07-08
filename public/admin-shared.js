@@ -71,6 +71,7 @@
             setupEventId = setupParams.get("event");
             setupRingId = setupParams.get("ring");
             setupSpecialty = setupParams.get("specialty");
+            const setupIsGlobal = setupParams.get("isGlobal") === "true";
 
             if (!setupEventId || !setupRingId || !setupSpecialty) {
                 showErrorModal("Missing setup data", "Event, ring or specialty were not provided. Please go back and complete the setup screen.");
@@ -80,7 +81,7 @@
             const res = await fetch(`http://localhost:8080/api/login/admin`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ eventId: setupEventId, ringId: setupRingId, specialty: setupSpecialty })
+                body: JSON.stringify({ eventId: setupEventId, ringId: setupRingId, specialty: setupSpecialty, isGlobal: setupIsGlobal })
             });
             if (!res.ok) throw new Error(`Login failed (HTTP ${res.status})`);
             const data = await res.json();
@@ -967,6 +968,7 @@
             if (!data.ok || !data.url) throw new Error("Invalid response");
 
             refereeState[refereeId].url = data.url;
+            refereeState[refereeId].code = data.code; // GLOBAL mode only — needed later
 
             const urlBtn = document.getElementById(`refUrl${refereeId}`);
             if (urlBtn) {

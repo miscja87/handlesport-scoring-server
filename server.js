@@ -8,7 +8,7 @@ import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { initScores, getScores, updateScore, deleteScore } from "./scores.js";
 import { createMatch, updateMatchDetails, updateMatchState, getMatchState } from "./match.js";
-import { loginAsServer, createRefereeDoc, updateRefereeDoc, deleteRefereeDoc, auth } from "./firestore.js";
+import { loginAsServer, createRefereeDoc, updateRefereeDoc, deleteRefereeDoc, listenToRefereeScores, auth } from "./firestore.js";
 import { ACTIONS, API_KEY, HANDLESPORT_BACKEND_URL, STATUS } from "./constants.js";
 import { SPECIALTY_CONFIGURATION } from "./specialty.js";
 import {
@@ -45,6 +45,8 @@ let specialtyCode = null;
 let serverId = null;
 let jwtToken = null;
 let level0Enabled = false; // PT "Level 0": while on, any referee button press forces that side's score straight to 0
+let isGlobalMode = false; // GLOBAL: referees write straight to Firestore (any network) instead of POSTing here
+let unsubscribeRefereeScores = null; // teardown for the GLOBAL-mode Firestore listener below
 
 // ── SSE STREAMS ──
 
@@ -87,19 +89,20 @@ app.get("/stream/clients", (req, res) => {
 // Login as server (for Firestore access)
 app.post("/api/login/admin", async (req, res) => {
     try {
-        const { eventId, ringId, specialty } = req.body;
-        
+        const { eventId, ringId, specialty, isGlobal } = req.body;
+
         validate(res, eventId, ringId);
-        
+
         event = eventId;
         ring = ringId;
         specialtyCode = specialty;
+        isGlobalMode = !!isGlobal;
 
-        console.log("Login server", event, ring);
-        
+        console.log("Login server", event, ring, "isGlobal:", isGlobalMode);
+
         // Login to Firebase as server if not already logged in
-        if (!serverId) {       
-            
+        if (!serverId) {
+
             await loginAsServer(event, ring);
 
             // Initialize scores in memory
@@ -113,6 +116,24 @@ app.post("/api/login/admin", async (req, res) => {
 
             // Generate JWT token
             jwtToken = generateJwt(event, ring);
+
+            // GLOBAL mode: referees can't reach this server directly (they
+            // may not share a network with it), so instead of waiting for
+            // POST /api/score/referee/:id, listen to their Firestore score
+            // docs directly and feed changes into the same broadcastAdmin()
+            // path the local flow uses — the admin UI doesn't need to know
+            // which mode is active.
+            if (isGlobalMode) {
+                unsubscribeRefereeScores = listenToRefereeScores(event, ring, (refereeId, data) => {
+                    if (!data?.score) return;
+
+                    const updated = updateScore(refereeId, data.action, data.score.red, data.score.blue);
+                    if (!updated) return;
+
+                    console.log(`[GLOBAL] Updated score for referee ${refereeId}:`, updated);
+                    broadcastAdmin({ referee: refereeId, score: updated.score, action: updated.action });
+                });
+            }
         }
 
         res.json({
@@ -270,13 +291,47 @@ app.get("/api/score/referee/:id", (req, res) => {
 });
 
 // Referee url
-app.get("/api/tablet/url/:refereeId", (req, res) => {
-    
+app.get("/api/tablet/url/:refereeId", async (req, res) => {
+
     const { refereeId } = req.params;
 
     const currentScores = getScores();
     const referee = currentScores?.[refereeId];
     if (!referee) return res.status(404).json({ error: `Referee ${refereeId} not found` });
+
+    // GLOBAL mode: the referee needs a link that works from any network, so
+    // instead of pointing at this machine's LAN address we ask the backend
+    // for a handlesport.com URL (backed by its own auth, not our local
+    // token) — the referee's tablet talks to Firestore/handlesport.com
+    // directly from there, never to this server.
+    if (isGlobalMode) {
+        try {
+            const bodyParams = new URLSearchParams({
+                id_event: event,
+                id_ring: ring,
+                id_referee: refereeId,
+                specialty: specialtyCode
+            });
+
+            const response = await fetch(`${HANDLESPORT_BACKEND_URL}/scoring/auth`, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded", token: jwtToken },
+                body: bodyParams.toString()
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || data.result !== "success" || !data.url) {
+                return res.status(response.status || 500).json({ ok: false, error: "Failed to generate global referee link", raw: data });
+            }
+
+            return res.json({ ok: true, refereeId, url: data.url, code: data.code });
+
+        } catch (err) {
+            console.error("Failed to fetch global referee auth URL:", err);
+            return res.status(500).json({ ok: false, error: "Failed to generate global referee link" });
+        }
+    }
 
     const url = `http://${LOCAL_IP}:${PORT}/tablet/${refereeId}?token=${referee.token}`;
 

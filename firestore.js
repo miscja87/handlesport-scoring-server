@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getAuth, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
 
@@ -152,6 +152,32 @@ async function updateDetails(event, ring, updateData) {
     }
 }
 
+// GLOBAL mode: referees write their score straight to Firestore instead of
+// POSTing to the local server (which they may not even be able to reach if
+// they're not on the same network). This listens to the whole ring_Y
+// subcollection at once — cheaper than one onSnapshot per referee, and it
+// picks up every referee_* doc without needing to know refereeCount ahead
+// of time. onUpdate(refereeId, data) fires once per changed referee doc;
+// status/details docs living in the same subcollection are filtered out.
+// Returns the unsubscribe function so the caller can tear the listener down.
+function listenToRefereeScores(event, ring, onUpdate) {
+    const ringCollection = collection(db, "score", `event_${event}`, `ring_${ring}`);
+
+    return onSnapshot(ringCollection, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+            if (change.type === "removed") return;
+            if (!change.doc.id.startsWith("referee_")) return;
+
+            const refereeId = parseInt(change.doc.id.replace("referee_", ""));
+            if (Number.isNaN(refereeId)) return;
+
+            onUpdate(refereeId, change.doc.data());
+        });
+    }, (error) => {
+        console.log("❌ Error listening to referee scores", error);
+    });
+}
+
 // Waiting for auth initialization
 function waitForAuthInitialized(auth) {
     return new Promise((resolve, reject) => {
@@ -169,4 +195,4 @@ function waitForAuthInitialized(auth) {
     });
 }
 
-export { loginAsServer, createRefereeDoc, updateRefereeDoc, deleteRefereeDoc, createStatus, updateStatus, createDetails, updateDetails, onSnapshot, auth };
+export { loginAsServer, createRefereeDoc, updateRefereeDoc, deleteRefereeDoc, createStatus, updateStatus, createDetails, updateDetails, listenToRefereeScores, onSnapshot, auth };
