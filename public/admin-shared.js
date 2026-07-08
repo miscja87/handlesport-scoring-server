@@ -968,12 +968,18 @@
             if (!data.ok || !data.url) throw new Error("Invalid response");
 
             refereeState[refereeId].url = data.url;
-            refereeState[refereeId].code = data.code; // GLOBAL mode only — needed later
+            refereeState[refereeId].code = data.code; // GLOBAL mode only
 
             const urlBtn = document.getElementById(`refUrl${refereeId}`);
             if (urlBtn) {
                 urlBtn.disabled = false;
                 urlBtn.innerHTML = `<span class="copy-icon">⧉</span> URL`;
+            }
+
+            const codeBtn = document.getElementById(`refCode${refereeId}`);
+            if (codeBtn) {
+                codeBtn.disabled = !data.code;
+                codeBtn.innerHTML = `<span class="copy-icon">⧉</span> ${data.code ?? "CODE"}`;
             }
 
             openAuthModal(refereeId, data.url);
