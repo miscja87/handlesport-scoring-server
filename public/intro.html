@@ -108,6 +108,88 @@
             color: white;
         }
 
+        /* ── MODE (local / global) — same look as specialty, plus an info
+           dot on each button whose tooltip explains what the mode means ── */
+        .mode-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .mode-btn {
+            position: relative;
+            background: #252d3f;
+            border: 1px solid #3a4560;
+            color: #c8ccd8;
+            padding: 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            text-align: center;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        .mode-btn:active { filter: brightness(1.2); }
+        .mode-btn.selected {
+            background: #1a6fa8;
+            border-color: #1a6fa8;
+            color: white;
+        }
+        .mode-info-dot {
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.12);
+            color: #c8ccd8;
+            font-size: 11px;
+            font-weight: 900;
+            line-height: 16px;
+            text-align: center;
+        }
+        .mode-btn.selected .mode-info-dot {
+            background: rgba(255,255,255,0.25);
+            color: white;
+        }
+        .mode-tooltip {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            width: 220px;
+            background: #10141f;
+            border: 1px solid #3a4560;
+            color: #c8ccd8;
+            font-size: 12px;
+            font-weight: 400;
+            letter-spacing: normal;
+            line-height: 1.4;
+            text-align: left;
+            padding: 10px 12px;
+            border-radius: 6px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.15s;
+            z-index: 10;
+        }
+        .mode-info-dot:hover + .mode-tooltip,
+        .mode-tooltip:hover {
+            opacity: 1;
+            visibility: visible;
+        }
+        .mode-tooltip::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: #3a4560;
+        }
+
         .continue-btn {
             margin-top: 4px;
             background: #2a9a5a;
@@ -218,6 +300,22 @@
             </div>
 
             <div class="field">
+                <label>Mode</label>
+                <div class="mode-row">
+                    <div class="mode-btn selected" id="modeLocal" onclick="selectMode('local')">
+                        LOCAL
+                        <span class="mode-info-dot"><svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor"><circle cx="12" cy="6.5" r="2.4"/><rect x="9.8" y="10" width="4.4" height="10" rx="1.5"/></svg></span>
+                        <div class="mode-tooltip">Tablets and other devices must be connected to the same local network as this computer.</div>
+                    </div>
+                    <div class="mode-btn" id="modeGlobal" onclick="selectMode('global')">
+                        GLOBAL
+                        <span class="mode-info-dot"><svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor"><circle cx="12" cy="6.5" r="2.4"/><rect x="9.8" y="10" width="4.4" height="10" rx="1.5"/></svg></span>
+                        <div class="mode-tooltip">Scoring is handled entirely through Firebase — tablets and other devices can connect from different networks.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="field">
                 <label>Specialty</label>
                 <div class="specialty-row">
                     <div class="specialty-btn" id="specialtySP" onclick="selectSpecialty('SP')">SPARRING</div>
@@ -248,6 +346,7 @@
 <script>
     const RING_COUNT = 10;
     let selectedSpecialty = null;
+    let selectedMode = "local"; // LOCAL is the default — matches the currently implemented logic
 
     const eventSelect = document.getElementById("eventSelect");
     const ringSelect = document.getElementById("ringSelect");
@@ -304,9 +403,17 @@
         onFieldChange();
     }
 
+    // ── MODE ──
+    function selectMode(value) {
+        selectedMode = value;
+        document.getElementById("modeLocal").classList.toggle("selected", value === "local");
+        document.getElementById("modeGlobal").classList.toggle("selected", value === "global");
+        onFieldChange();
+    }
+
     // ── VALIDATION ──
     function onFieldChange() {
-        const valid = eventSelect.value && ringSelect.value && selectedSpecialty;
+        const valid = eventSelect.value && ringSelect.value && selectedSpecialty && selectedMode;
         continueBtn.disabled = !valid;
     }
 
@@ -315,7 +422,8 @@
         const params = new URLSearchParams({
             event: eventSelect.value,
             ring: ringSelect.value,
-            specialty: selectedSpecialty
+            specialty: selectedSpecialty,
+            isGlobal: selectedMode === "global"
         });
         window.location.href = `/admin?${params.toString()}`;
     }
