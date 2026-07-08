@@ -300,8 +300,8 @@ app.delete("/api/score/referee/:id", async (req, res) => {
 });
 
 // Clears the referee's match score token on the handlesport.com backend —
-// removes the MySQL record tied to their auth. Not wired up to the admin UI
-// yet (admin-sp/admin-pt will call this later).
+// removes the MySQL record tied to their auth. Wired up from the referee
+// card's "CLEAR TOKEN" button (admin-shared.js), GLOBAL mode only.
 app.post("/api/referee/clear-token/:refereeId", async (req, res) => {
 
     validate(res, event, ring);
@@ -327,11 +327,67 @@ app.post("/api/referee/clear-token/:refereeId", async (req, res) => {
             return res.status(response.status).json(data);
         }
 
+        // Reset the Firestore doc's status back to "pending" — otherwise it's
+        // still "ok" from the previous session, so when the referee
+        // re-authenticates and writes status:"ok" again it's the SAME value
+        // as before. Firestore's onSnapshot only reports docChanges() for
+        // actual data changes, so a same-value rewrite produces no change
+        // event at all — the admin's listener would never see it and the QR
+        // modal would never close on the second connection.
+        await updateRefereeDoc(event, ring, refereeId, { status: "pending" });
+
+        // Forget this referee was ever marked CONNECTED, so the next real
+        // "pending" -> "ok" transition gets broadcast again.
+        globalConnectedReferees.delete(parseInt(refereeId));
+
         return res.json({ ok: true, raw: data });
 
     } catch (err) {
         console.error("Failed to clear referee match score token:", err);
         return res.status(500).json({ ok: false, error: "Failed to clear referee match score token" });
+    }
+});
+
+// Same as above but for every referee at once — no id_referee, the backend
+// clears every match score token for this event/ring in one call. Wired up
+// from the "CLEAR ALL TOKENS" toolbar button (admin-shared.js), GLOBAL mode
+// only.
+app.post("/api/referees/clear-tokens", async (req, res) => {
+
+    validate(res, event, ring);
+
+    try {
+        const bodyParams = new URLSearchParams({
+            id_event: event,
+            id_ring: ring
+        });
+
+        const response = await fetch(`${HANDLESPORT_BACKEND_URL}/scoring/clearMatchScoreToken`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded", token: jwtToken },
+            body: bodyParams.toString()
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return res.status(response.status).json(data);
+        }
+
+        // Same reasoning as the per-referee route above — reset every
+        // referee's status back to "pending" so a re-auth is a genuine
+        // transition Firestore will actually notify the listener about.
+        const totalReferees = SPECIALTY_CONFIGURATION[specialtyCode].referees;
+        for (let i = 1; i <= totalReferees; i++) {
+            await updateRefereeDoc(event, ring, i, { status: "pending" });
+        }
+        globalConnectedReferees = new Set();
+
+        return res.json({ ok: true, raw: data });
+
+    } catch (err) {
+        console.error("Failed to clear all referee match score tokens:", err);
+        return res.status(500).json({ ok: false, error: "Failed to clear all referee match score tokens" });
     }
 });
 

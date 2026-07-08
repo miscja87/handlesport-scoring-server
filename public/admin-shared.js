@@ -28,6 +28,7 @@
     let setupEventId = null;
     let setupRingId = null;
     let setupSpecialty = null;
+    let isGlobalMode = false;
 
     let currentMatches = [];
     let currentMatchIndex = 0;
@@ -72,6 +73,7 @@
             setupRingId = setupParams.get("ring");
             setupSpecialty = setupParams.get("specialty");
             const setupIsGlobal = setupParams.get("isGlobal") === "true";
+            isGlobalMode = setupIsGlobal;
 
             if (!setupEventId || !setupRingId || !setupSpecialty) {
                 showErrorModal("Missing setup data", "Event, ring or specialty were not provided. Please go back and complete the setup screen.");
@@ -90,6 +92,9 @@
             localIp = data.localIp;
 
             document.getElementById("ringNumber").textContent = setupRingId;
+
+            const clearAllTokensBtn = document.getElementById("clearAllTokensBtn");
+            if (clearAllTokensBtn) clearAllTokensBtn.classList.toggle("hidden", !isGlobalMode);
 
             const refereeCountFromServer = parseInt(data.referees) || refereeCount;
             const startScoreFromServer = data.refereeStartScore !== undefined
@@ -911,8 +916,8 @@
                     </label>
                 </div>
                 <div class="referee-score-row">
-                    <div class="referee-score-box red" id="refScoreRed${i}" onclick="SharedAdmin.editRefereeScore(${i}, 'red')">${refereeState[i].score.red}</div>
-                    <div class="referee-score-box blue" id="refScoreBlue${i}" onclick="SharedAdmin.editRefereeScore(${i}, 'blue')">${refereeState[i].score.blue}</div>
+                    <div class="referee-score-box red ${refereeState[i].connected ? "connected" : ""}" id="refScoreRed${i}" onclick="SharedAdmin.editRefereeScore(${i}, 'red')">${refereeState[i].score.red}</div>
+                    <div class="referee-score-box blue ${refereeState[i].connected ? "connected" : ""}" id="refScoreBlue${i}" onclick="SharedAdmin.editRefereeScore(${i}, 'blue')">${refereeState[i].score.blue}</div>
                 </div>
                 <div class="referee-btn-row">
                     <button class="referee-btn auth" id="refAuth${i}">AUTH</button>
@@ -926,6 +931,10 @@
                         <span class="copy-icon">⧉</span> URL
                     </button>
                 </div>
+                ${isGlobalMode ? `
+                <div class="referee-btn-row">
+                    <button class="referee-btn danger full" id="refClearToken${i}">🗑 CLEAR TOKEN</button>
+                </div>` : ""}
             `;
             refereesGrid.appendChild(card);
 
@@ -950,6 +959,84 @@
                 if (!refereeState[i].url) return;
                 copyToClipboard(refereeState[i].url, `URL for Referee ${i} copied`);
             });
+
+            if (isGlobalMode) {
+                document.getElementById(`refClearToken${i}`).addEventListener("click", () => {
+                    showInfoModal(
+                        `Clear Referee ${i}'s token?`,
+                        "Removes their match score token on the backend — they'll need a new link/QR code to reconnect.",
+                        "CLEAR TOKEN",
+                        () => clearRefereeToken(i),
+                        { cancelText: "Cancel" }
+                    );
+                });
+            }
+        }
+    }
+
+    // GLOBAL mode only — removes the referee's match score token record on
+    // the handlesport.com backend (MySQL), e.g. when they need a fresh
+    // link/QR code to reconnect. Does not touch the local in-memory score
+    // or the Firestore doc — just the backend token. The referee card itself
+    // resets back to its never-connected state (code/url cleared, connected
+    // flag off) since their old link/code are no longer valid.
+    async function clearRefereeToken(refereeId) {
+        closeInfoModal();
+        try {
+            const res = await fetch(`${apiBase()}/api/referee/clear-token/${refereeId}`, { method: "POST" });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            const ref = refereeState[refereeId];
+            if (ref) {
+                ref.connected = false;
+                ref.code = null;
+                ref.url = null;
+            }
+            renderReferees();
+            if (hooks.onRefereeScoreChanged) hooks.onRefereeScoreChanged();
+
+            showToast(`Referee ${refereeId} token cleared`);
+        } catch (err) {
+            console.error(`Failed to clear token for referee ${refereeId}:`, err);
+            showErrorModal("Could not clear token", `Failed to clear the match score token for Referee ${refereeId}. Please check the connection and try again.`);
+        }
+    }
+
+    // GLOBAL mode only — same idea as clearRefereeToken() but for every
+    // referee at once (no id_referee sent, the backend clears every token
+    // for this event/ring). Resets every referee card back to its
+    // never-connected state.
+    function confirmClearAllRefereeTokens() {
+        showInfoModal(
+            "Clear ALL referee tokens?",
+            "Removes every referee's match score token on the backend — they'll all need a new link/QR code to reconnect.",
+            "CLEAR ALL TOKENS",
+            clearAllRefereeTokens,
+            { cancelText: "Cancel" }
+        );
+    }
+
+    async function clearAllRefereeTokens() {
+        closeInfoModal();
+        try {
+            const res = await fetch(`${apiBase()}/api/referees/clear-tokens`, { method: "POST" });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            for (let i = 1; i <= refereeCount; i++) {
+                const ref = refereeState[i];
+                if (ref) {
+                    ref.connected = false;
+                    ref.code = null;
+                    ref.url = null;
+                }
+            }
+            renderReferees();
+            if (hooks.onRefereeScoreChanged) hooks.onRefereeScoreChanged();
+
+            showToast("All referee tokens cleared");
+        } catch (err) {
+            console.error("Failed to clear all referee tokens:", err);
+            showErrorModal("Could not clear tokens", "Failed to clear all referee tokens. Please check the connection and try again.");
         }
     }
 
@@ -1590,6 +1677,7 @@
         markRefereeConnected, updateRefereeScore, editRefereeScore,
         toggleRefereeEnabled, resetRefereeScore, subtractPointFromAllReferees,
         notifyRefereeScore, recalculateMainScore, clearRefereeStaleWarnings,
+        confirmClearAllRefereeTokens,
 
         // misc
         showToast
