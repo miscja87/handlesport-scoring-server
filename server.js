@@ -295,8 +295,44 @@ app.delete("/api/score/referee/:id", async (req, res) => {
 
     // delete score in Firestore
     await deleteRefereeDoc(event, ring, referee);
-    
+
     res.json({ ok: true });
+});
+
+// Clears the referee's match score token on the handlesport.com backend —
+// removes the MySQL record tied to their auth. Not wired up to the admin UI
+// yet (admin-sp/admin-pt will call this later).
+app.post("/api/referee/clear-token/:refereeId", async (req, res) => {
+
+    validate(res, event, ring);
+
+    try {
+        const { refereeId } = req.params;
+
+        const bodyParams = new URLSearchParams({
+            id_event: event,
+            id_ring: ring,
+            id_referee: refereeId
+        });
+
+        const response = await fetch(`${HANDLESPORT_BACKEND_URL}/scoring/clearMatchScoreToken`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded", token: jwtToken },
+            body: bodyParams.toString()
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return res.status(response.status).json(data);
+        }
+
+        return res.json({ ok: true, raw: data });
+
+    } catch (err) {
+        console.error("Failed to clear referee match score token:", err);
+        return res.status(500).json({ ok: false, error: "Failed to clear referee match score token" });
+    }
 });
 
 // Score by referee
