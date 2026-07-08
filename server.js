@@ -143,7 +143,14 @@ app.post("/api/login/admin", async (req, res) => {
 
                     if (!data?.score) return;
 
-                    const updated = updateScore(refereeId, data.action, data.score.red, data.score.blue);
+                    // Firestore stores these as strings like "21.0" (the
+                    // referee's incrementRefereeScore transaction always
+                    // calls .toFixed(1)) — parseFloat here mirrors what the
+                    // LOCAL POST route already does, so a whole number shows
+                    // as "21" on the admin UI instead of "21.0".
+                    const red = parseFloat(data.score.red);
+                    const blue = parseFloat(data.score.blue);
+                    const updated = updateScore(refereeId, data.action, red, blue);
                     if (!updated) return;
 
                     console.log(`[GLOBAL] Updated score for referee ${refereeId}:`, updated);

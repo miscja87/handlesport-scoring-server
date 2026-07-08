@@ -588,7 +588,13 @@ $startScore    = $startScore    ?? 0;
     window.closeMenu = closeMenu;
     window.closeMenuOnBackdrop = closeMenuOnBackdrop;
 
-    window.addEventListener("load", init);
+    // NOT window.addEventListener("load", init) — module scripts already
+    // execute after the DOM is parsed, and this module does real async work
+    // (the common.firestore.js import) before reaching this line, so by the
+    // time we'd register the listener the page's "load" event may have
+    // already fired — a late listener never receives a past event, which is
+    // exactly why init() was silently never running.
+    init();
 </script>
 
 </body>
