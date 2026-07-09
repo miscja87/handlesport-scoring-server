@@ -43,6 +43,26 @@
             margin-top: 6px;
         }
 
+        /* ── CONNECTION INDICATOR ── */
+        .connection-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 12px;
+            font-size: 12px;
+            color: #8a93a8;
+        }
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #6a7590;
+            flex-shrink: 0;
+        }
+        .connection-dot.stable   { background: #2a9a5a; }
+        .connection-dot.slow     { background: #e0b400; }
+        .connection-dot.unstable { background: #cc3340; }
+
         .card-body {
             padding: 24px 28px 28px;
             display: flex;
@@ -282,6 +302,10 @@
         <div class="card-header">
             <h1>Scoring setup</h1>
             <p>Select the event, ring and specialty to start scoring.</p>
+            <div class="connection-indicator" id="connectionIndicator">
+                <span class="connection-dot" id="connectionDot"></span>
+                <span id="connectionText">Checking connection...</span>
+            </div>
         </div>
 
         <div class="card-body">
@@ -357,6 +381,66 @@
     async function init() {
         populateRingOptions();
         await loadEvents();
+        startConnectionMonitor();
+    }
+
+    // ── CONNECTION INDICATOR ──
+    // Pings /api/ping (which itself checks the external handlesport.com
+    // backend, not just this local server) every few seconds and keeps a
+    // rolling window of results — a single slow/failed ping doesn't flip the
+    // indicator, but a pattern of them does. This is what setup (and GLOBAL
+    // mode later) actually depends on being reachable, so it's a more
+    // meaningful signal than just "is the local server up".
+    const CONNECTION_CHECK_INTERVAL_MS = 4000;
+    const CONNECTION_HISTORY_SIZE = 5;
+    const CONNECTION_SLOW_THRESHOLD_MS = 800;
+    let connectionHistory = [];
+
+    function startConnectionMonitor() {
+        checkConnection();
+        setInterval(checkConnection, CONNECTION_CHECK_INTERVAL_MS);
+    }
+
+    async function checkConnection() {
+        const start = performance.now();
+        let ok = false;
+        try {
+            const res = await fetch("http://localhost:8080/api/ping");
+            const data = await res.json();
+            ok = res.ok && !!data.backendReachable;
+        } catch (err) {
+            ok = false;
+        }
+        const ms = performance.now() - start;
+
+        connectionHistory.push({ ok, ms });
+        if (connectionHistory.length > CONNECTION_HISTORY_SIZE) connectionHistory.shift();
+
+        updateConnectionIndicator();
+    }
+
+    function updateConnectionIndicator() {
+        const dot = document.getElementById("connectionDot");
+        const text = document.getElementById("connectionText");
+
+        const failures = connectionHistory.filter(h => !h.ok).length;
+        const successes = connectionHistory.filter(h => h.ok);
+        const avgMs = successes.length ? successes.reduce((sum, h) => sum + h.ms, 0) / successes.length : null;
+
+        dot.classList.remove("stable", "slow", "unstable");
+
+        if (failures >= 2) {
+            dot.classList.add("unstable");
+            text.textContent = "Connection unstable";
+        } else if (avgMs !== null && avgMs > CONNECTION_SLOW_THRESHOLD_MS) {
+            dot.classList.add("slow");
+            text.textContent = `Connection slow (${Math.round(avgMs)}ms)`;
+        } else if (avgMs !== null) {
+            dot.classList.add("stable");
+            text.textContent = `Connection stable (${Math.round(avgMs)}ms)`;
+        } else {
+            text.textContent = "Checking connection...";
+        }
     }
 
     function populateRingOptions() {

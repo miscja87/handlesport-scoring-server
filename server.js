@@ -672,6 +672,20 @@ app.get("/api/matches", async (req, res) => {
     }
 });
 
+// Lightweight connectivity check used by intro.html's connection stability
+// indicator — touches the external handlesport.com backend too (not just
+// this local server), since that's what setup and GLOBAL mode actually
+// depend on being reachable. Callable before login (no event/ring needed).
+app.get("/api/ping", async (req, res) => {
+    const start = Date.now();
+    try {
+        const response = await fetch(`${HANDLESPORT_BACKEND_URL}/scoring/getEvents`);
+        return res.json({ ok: true, backendReachable: response.ok, backendMs: Date.now() - start });
+    } catch (err) {
+        return res.json({ ok: true, backendReachable: false, backendMs: Date.now() - start });
+    }
+});
+
 // Get events
 app.get("/api/events", async (req, res) => {
 
