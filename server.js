@@ -327,14 +327,15 @@ app.post("/api/referee/clear-token/:refereeId", async (req, res) => {
             return res.status(response.status).json(data);
         }
 
-        // Reset the Firestore doc's status back to "pending" — otherwise it's
-        // still "ok" from the previous session, so when the referee
-        // re-authenticates and writes status:"ok" again it's the SAME value
-        // as before. Firestore's onSnapshot only reports docChanges() for
-        // actual data changes, so a same-value rewrite produces no change
-        // event at all — the admin's listener would never see it and the QR
-        // modal would never close on the second connection.
-        await updateRefereeDoc(event, ring, refereeId, { status: "pending" });
+        // Delete the Firestore doc entirely rather than just resetting
+        // status — the next AUTH click already calls ensureRefereeDoc(),
+        // which recreates it fresh (status: pending, score: startScore) if
+        // missing. That recreation, followed by the referee's own
+        // loginAsReferee() later writing status:"ok", is a genuine
+        // "pending" -> "ok" transition, which is what Firestore's
+        // onSnapshot actually needs to fire a change event (same-value
+        // rewrites are silently ignored — see the listener above).
+        await deleteRefereeDoc(event, ring, refereeId);
 
         // Forget this referee was ever marked CONNECTED, so the next real
         // "pending" -> "ok" transition gets broadcast again.
@@ -374,12 +375,13 @@ app.post("/api/referees/clear-tokens", async (req, res) => {
             return res.status(response.status).json(data);
         }
 
-        // Same reasoning as the per-referee route above — reset every
-        // referee's status back to "pending" so a re-auth is a genuine
-        // transition Firestore will actually notify the listener about.
+        // Same reasoning as the per-referee route above — delete every
+        // referee's Firestore doc so the next AUTH click recreates it fresh
+        // via ensureRefereeDoc(), guaranteeing a genuine "pending" -> "ok"
+        // transition on the next real re-auth.
         const totalReferees = SPECIALTY_CONFIGURATION[specialtyCode].referees;
         for (let i = 1; i <= totalReferees; i++) {
-            await updateRefereeDoc(event, ring, i, { status: "pending" });
+            await deleteRefereeDoc(event, ring, i);
         }
         globalConnectedReferees = new Set();
 
