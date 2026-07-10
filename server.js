@@ -300,8 +300,11 @@ app.delete("/api/score/referee/:id", async (req, res) => {
 });
 
 // Clears the referee's match score token on the handlesport.com backend —
-// removes the MySQL record tied to their auth. Wired up from the referee
-// card's "CLEAR TOKEN" button (admin-shared.js), GLOBAL mode only.
+// removes the MySQL record tied to their auth — and deletes their Firestore
+// doc. Wired up from the referee card's "CLEAR TOKEN" button (admin-shared.js),
+// both modes: called unconditionally (it responds ok even when there's no
+// MySQL token to clear in LOCAL mode) since LOCAL referees still get a
+// Firestore doc (created at /api/login/referee) that's worth clearing too.
 app.post("/api/referee/clear-token/:refereeId", async (req, res) => {
 
     validate(res, event, ring);
@@ -321,10 +324,10 @@ app.post("/api/referee/clear-token/:refereeId", async (req, res) => {
             body: bodyParams.toString()
         });
 
-        const data = await response.json();
+        const raw = await response.json();
 
         if (!response.ok) {
-            return res.status(response.status).json(data);
+            return res.status(response.status).json(raw);
         }
 
         // Delete the Firestore doc entirely rather than just resetting
@@ -338,10 +341,11 @@ app.post("/api/referee/clear-token/:refereeId", async (req, res) => {
         await deleteRefereeDoc(event, ring, refereeId);
 
         // Forget this referee was ever marked CONNECTED, so the next real
-        // "pending" -> "ok" transition gets broadcast again.
+        // "pending" -> "ok" transition gets broadcast again (GLOBAL only —
+        // this set stays empty and unused in LOCAL mode).
         globalConnectedReferees.delete(parseInt(refereeId));
 
-        return res.json({ ok: true, raw: data });
+        return res.json({ ok: true, raw });
 
     } catch (err) {
         console.error("Failed to clear referee match score token:", err);
@@ -351,8 +355,8 @@ app.post("/api/referee/clear-token/:refereeId", async (req, res) => {
 
 // Same as above but for every referee at once — no id_referee, the backend
 // clears every match score token for this event/ring in one call. Wired up
-// from the "CLEAR ALL TOKENS" toolbar button (admin-shared.js), GLOBAL mode
-// only.
+// from the "CLEAR ALL TOKENS" toolbar button (admin-shared.js), both modes —
+// see the per-referee route above for why it's called unconditionally.
 app.post("/api/referees/clear-tokens", async (req, res) => {
 
     validate(res, event, ring);
@@ -369,10 +373,10 @@ app.post("/api/referees/clear-tokens", async (req, res) => {
             body: bodyParams.toString()
         });
 
-        const data = await response.json();
+        const raw = await response.json();
 
         if (!response.ok) {
-            return res.status(response.status).json(data);
+            return res.status(response.status).json(raw);
         }
 
         // Same reasoning as the per-referee route above — delete every
@@ -385,7 +389,7 @@ app.post("/api/referees/clear-tokens", async (req, res) => {
         }
         globalConnectedReferees = new Set();
 
-        return res.json({ ok: true, raw: data });
+        return res.json({ ok: true, raw });
 
     } catch (err) {
         console.error("Failed to clear all referee match score tokens:", err);

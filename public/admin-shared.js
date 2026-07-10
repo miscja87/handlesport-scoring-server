@@ -93,9 +93,6 @@
 
             document.getElementById("ringNumber").textContent = setupRingId;
 
-            const clearAllTokensBtn = document.getElementById("clearAllTokensBtn");
-            if (clearAllTokensBtn) clearAllTokensBtn.classList.toggle("hidden", !isGlobalMode);
-
             const refereeCountFromServer = parseInt(data.referees) || refereeCount;
             const startScoreFromServer = data.refereeStartScore !== undefined
                 ? parseFloat(data.refereeStartScore)
@@ -931,10 +928,9 @@
                         <span class="copy-icon">⧉</span> URL
                     </button>
                 </div>
-                ${isGlobalMode ? `
                 <div class="referee-btn-row">
                     <button class="referee-btn danger full" id="refClearToken${i}">🗑 CLEAR TOKEN</button>
-                </div>` : ""}
+                </div>
             `;
             refereesGrid.appendChild(card);
 
@@ -960,17 +956,15 @@
                 copyToClipboard(refereeState[i].url, `URL for Referee ${i} copied`);
             });
 
-            if (isGlobalMode) {
-                document.getElementById(`refClearToken${i}`).addEventListener("click", () => {
-                    showInfoModal(
-                        `Clear Referee ${i}'s token?`,
-                        "Removes their match score token on the backend — they'll need a new link/QR code to reconnect.",
-                        "CLEAR TOKEN",
-                        () => clearRefereeToken(i),
-                        { cancelText: "Cancel" }
-                    );
-                });
-            }
+            document.getElementById(`refClearToken${i}`).addEventListener("click", () => {
+                showInfoModal(
+                    `Clear Referee ${i}'s token?`,
+                    "Removes their auth record — they'll need a new link/QR code to reconnect.",
+                    "CLEAR TOKEN",
+                    () => clearRefereeToken(i),
+                    { cancelText: "Cancel" }
+                );
+            });
         }
     }
 
@@ -1009,7 +1003,7 @@
     function confirmClearAllRefereeTokens() {
         showInfoModal(
             "Clear ALL referee tokens?",
-            "Removes every referee's match score token on the backend — they'll all need a new link/QR code to reconnect.",
+            "Removes every referee's auth record — they'll all need a new link/QR code to reconnect.",
             "CLEAR ALL TOKENS",
             clearAllRefereeTokens,
             { cancelText: "Cancel" }
