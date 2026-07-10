@@ -76,6 +76,7 @@
             isGlobalMode = setupIsGlobal;
 
             if (!setupEventId || !setupRingId || !setupSpecialty) {
+                hideAdminLoadingOverlay();
                 showErrorModal("Missing setup data", "Event, ring or specialty were not provided. Please go back and complete the setup screen.");
                 return;
             }
@@ -128,11 +129,18 @@
             };
 
             if (hooks.onInitComplete) hooks.onInitComplete();
+            hideAdminLoadingOverlay();
 
         } catch (err) {
             console.error("Initialization error:", err);
+            hideAdminLoadingOverlay();
             showErrorModal("Login failed", "Could not connect to the local server. Please check that the server is running and try again.");
         }
+    }
+
+    function hideAdminLoadingOverlay() {
+        const overlay = document.getElementById("adminLoadingOverlay");
+        if (overlay) overlay.classList.add("hidden");
     }
 
     // ── ERROR MODAL ──
