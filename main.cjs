@@ -1,8 +1,7 @@
-const { app, BrowserWindow, screen, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, screen, ipcMain } = require("electron");
 
 let win = null;          // admin window (primary)
 let displayWin = null;   // public display window (secondary monitor)
-let quitConfirmed = false; // set right before the confirmed close, so the "close" handler below doesn't intercept itself
 
 function createWindow() {
     win = new BrowserWindow({
@@ -18,28 +17,6 @@ function createWindow() {
     win.loadURL("http://localhost:8080/intro");
 
     setupSerialPortSupport(win);
-
-    // Confirm before actually closing — accidental Alt+F4 / window-X during
-    // a live match would otherwise kill scoring with no warning.
-    win.on("close", (event) => {
-        if (quitConfirmed) return;
-        event.preventDefault();
-
-        dialog.showMessageBox(win, {
-            type: "question",
-            buttons: ["Cancel", "Quit"],
-            defaultId: 0,
-            cancelId: 0,
-            title: "Quit Handlesport Scoring?",
-            message: "Are you sure you want to close the application?",
-            detail: "Any match currently in progress will stop."
-        }).then(({ response }) => {
-            if (response === 1) {
-                quitConfirmed = true;
-                win.close();
-            }
-        });
-    });
 
     win.on("closed", () => {
         win = null;
