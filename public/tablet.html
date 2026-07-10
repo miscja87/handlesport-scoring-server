@@ -205,6 +205,50 @@
         }
         .toast.show { opacity: 1; }
         .hidden { display: none !important; }
+
+        /* ── CONNECTION ERROR MODAL ── */
+        .error-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .error-modal {
+            background: #1f2638;
+            border-radius: 10px;
+            width: 100%;
+            max-width: 360px;
+            overflow: hidden;
+            border: 1px solid #5a2a30;
+        }
+        .error-modal-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 18px 20px;
+            border-bottom: 1px solid #2a3550;
+        }
+        .error-modal-header .error-icon { color: #e05a5a; font-size: 20px; }
+        .error-modal-header h3 { color: #e05a5a; font-size: 16px; font-weight: 700; }
+        .error-modal-body { padding: 20px; color: #c8ccd8; font-size: 14px; line-height: 1.5; }
+        .error-modal-footer { padding: 0 20px 20px; }
+        .error-modal-footer button {
+            width: 100%;
+            border: none;
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            padding: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #cc3340;
+        }
+        .error-modal-footer button:active { filter: brightness(1.2); }
     </style>
 </head>
 <body>
@@ -252,6 +296,22 @@
     </div>
 
     <div class="toast" id="toast"></div>
+
+    <!-- CONNECTION ERROR MODAL -->
+    <div class="error-modal-overlay hidden" id="connErrorOverlay">
+        <div class="error-modal">
+            <div class="error-modal-header">
+                <span class="error-icon">⚠</span>
+                <h3>Connection problem</h3>
+            </div>
+            <div class="error-modal-body">
+                The last 3 score updates failed to send. Please alert an official — some points may not have been recorded.
+            </div>
+            <div class="error-modal-footer">
+                <button onclick="closeConnErrorModal()">OK</button>
+            </div>
+        </div>
+    </div>
 
 <script>
     const pathParts = window.location.pathname.split("/");
@@ -460,12 +520,13 @@
     }
 
     async function sendScore() {
+        let ok = false;
         try {
             // Not supported on iOS Safari (navigator.vibrate is undefined
             // there) — calling it unconditionally throws and skips the
             // fetch below entirely, which is why scores failed to send.
             if (navigator.vibrate) navigator.vibrate(100);
-            await fetch(`${serverBase}/api/score/referee/${referee}`, {
+            const res = await fetch(`${serverBase}/api/score/referee/${referee}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -473,9 +534,38 @@
                     score: { red: String(scores.red), blue: String(scores.blue) }
                 })
             });
+            ok = res.ok;
+            if (!ok) showToast("Error sending score");
         } catch (err) {
             showToast("Error sending score");
         }
+
+        // 3 sends in a row failing (network down, server unreachable, etc.)
+        // is a real problem worth interrupting the referee for — a single
+        // dropped send happens occasionally and self-corrects, so this only
+        // fires on a genuine streak, not a one-off blip.
+        if (ok) {
+            consecutiveSendFailures = 0;
+            connectionErrorShown = false;
+        } else {
+            consecutiveSendFailures++;
+            if (consecutiveSendFailures >= 3 && !connectionErrorShown) {
+                connectionErrorShown = true;
+                showConnectionErrorModal();
+            }
+        }
+    }
+
+    // ── CONNECTION ERROR MODAL ──
+    let consecutiveSendFailures = 0;
+    let connectionErrorShown = false; // don't re-show on every failure during the same streak
+
+    function showConnectionErrorModal() {
+        document.getElementById("connErrorOverlay").classList.remove("hidden");
+    }
+
+    function closeConnErrorModal() {
+        document.getElementById("connErrorOverlay").classList.add("hidden");
     }
 
     // ── MODE ──
