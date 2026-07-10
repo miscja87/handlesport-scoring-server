@@ -719,6 +719,22 @@ app.get("/api/ping", async (req, res) => {
     }
 });
 
+// Returns the running app's own version, shown on the setup screen.
+// HANDLESPORT_APP_VERSION is set by main.cjs from Electron's app.getVersion()
+// (the authoritative source); falls back to reading package.json directly
+// when run standalone (e.g. plain `node server.js`, outside Electron).
+app.get("/api/app-version", (req, res) => {
+    if (process.env.HANDLESPORT_APP_VERSION) {
+        return res.json({ version: process.env.HANDLESPORT_APP_VERSION });
+    }
+    try {
+        const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json"), "utf8"));
+        return res.json({ version: pkg.version });
+    } catch (err) {
+        return res.json({ version: null });
+    }
+});
+
 // Checks handlesport.com for a newer scoring-server release. Called by
 // main.cjs right after the admin window finishes loading; if a newer
 // version is available, intro.html shows an update modal. Doesn't require

@@ -29,6 +29,7 @@
         }
 
         .card-header {
+            position: relative;
             padding: 28px 28px 20px;
             border-bottom: 1px solid #2a3550;
         }
@@ -36,6 +37,15 @@
             font-size: 20px;
             font-weight: 900;
             letter-spacing: 0.5px;
+        }
+        .version-tag {
+            position: absolute;
+            top: 28px;
+            right: 28px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #5a6480;
+            letter-spacing: 0.3px;
         }
         .card-header p {
             color: #8a93a8;
@@ -330,6 +340,7 @@
     <div class="card">
         <div class="card-header">
             <h1>Scoring setup</h1>
+            <span class="version-tag" id="versionTag"></span>
             <p>Select the event, ring and specialty to start scoring.</p>
             <div class="connection-indicator" id="connectionIndicator">
                 <span class="connection-dot" id="connectionDot"></span>
@@ -426,6 +437,17 @@
         populateRingOptions();
         await loadEvents();
         startConnectionMonitor();
+        loadAppVersion();
+    }
+
+    async function loadAppVersion() {
+        try {
+            const res = await fetch("http://localhost:8080/api/app-version");
+            const data = await res.json();
+            if (data.version) document.getElementById("versionTag").textContent = `v${data.version}`;
+        } catch (err) {
+            console.error("Failed to load app version:", err);
+        }
     }
 
     // ── CONNECTION INDICATOR ──

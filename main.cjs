@@ -174,6 +174,7 @@ app.whenReady().then(async () => {
         // mkdirSync/writes there fail). Electron's userData dir is always
         // writable both in dev and packaged.
         process.env.HANDLESPORT_LOGS_DIR = require("path").join(app.getPath("userData"), "logs");
+        process.env.HANDLESPORT_APP_VERSION = app.getVersion();
 
         const { startServer } = await import("./server.js");
 
