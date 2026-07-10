@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, ipcMain } = require("electron");
+const { app, BrowserWindow, screen, ipcMain, shell } = require("electron");
 
 let win = null;          // admin window (primary)
 let displayWin = null;   // public display window (secondary monitor)
@@ -17,6 +17,11 @@ function createWindow() {
     win.loadURL("http://localhost:8080/intro");
 
     setupSerialPortSupport(win);
+
+    // Wait for the page (and its preload-registered IPC listener) to be
+    // ready before checking — sending "update:available" any earlier could
+    // arrive before intro.html has called updateBridge.onUpdateAvailable().
+    win.webContents.once("did-finish-load", checkForUpdate);
 
     win.on("closed", () => {
         win = null;
@@ -116,6 +121,48 @@ ipcMain.on("display:close", () => {
 ipcMain.on("display:update", (event, payload) => {
     if (displayWin) {
         displayWin.webContents.send("display:update", payload);
+    }
+});
+
+// ── UPDATE CHECK ──
+// Asks the local server (which proxies handlesport.com/scoring/getScoringServer)
+// for the latest released version. If it's newer than this build, notifies
+// intro.html via IPC — the modal there just opens the download URL in the
+// user's browser (no auto-download/auto-run of the fetched .exe).
+async function checkForUpdate() {
+    try {
+        const res = await fetch("http://localhost:8080/api/check-update");
+        const data = await res.json();
+
+        if (!data.result || !data.version || !data.url) return;
+        if (!isNewerVersion(data.version, app.getVersion())) return;
+
+        if (win) win.webContents.send("update:available", { version: data.version, url: data.url });
+    } catch (err) {
+        console.error("Update check failed:", err);
+    }
+}
+
+// Plain MAJOR.MINOR.PATCH string comparison — no semver library needed for
+// the simple numeric versions this app uses.
+function isNewerVersion(remoteVersion, currentVersion) {
+    const remote = remoteVersion.split(".").map(Number);
+    const current = currentVersion.split(".").map(Number);
+
+    for (let i = 0; i < Math.max(remote.length, current.length); i++) {
+        const r = remote[i] || 0;
+        const c = current[i] || 0;
+        if (r > c) return true;
+        if (r < c) return false;
+    }
+    return false;
+}
+
+ipcMain.on("update:open-download", (event, url) => {
+    // Only ever open handlesport.com URLs — this came from a network
+    // response, so worth a basic origin check before handing it to the OS.
+    if (typeof url === "string" && url.startsWith("https://www.handlesport.com/")) {
+        shell.openExternal(url);
     }
 });
 

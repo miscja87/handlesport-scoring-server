@@ -293,6 +293,35 @@
         }
         .error-modal-footer button:active { filter: brightness(1.2); }
 
+        /* ── UPDATE AVAILABLE MODAL (same shell as the error modal, blue
+           accent instead of red, two buttons instead of one) ── */
+        .update-modal { border-color: #2a4a5a; }
+        .update-modal .error-modal-header .update-icon {
+            color: #4a9fd8;
+            display: flex;
+            align-items: center;
+        }
+        .update-modal .error-modal-header h3 { color: #4a9fd8; font-size: 16px; font-weight: 700; }
+        .update-modal-footer {
+            display: flex;
+            gap: 10px;
+            padding: 0 20px 20px;
+        }
+        .update-modal-footer button {
+            flex: 1;
+            border: none;
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            padding: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .update-modal-footer button:active { filter: brightness(1.2); }
+        .update-modal-footer .btn-later { background: #3a4560; }
+        .update-modal-footer .btn-download { background: #2a9a5a; }
+
         .hidden { display: none !important; }
     </style>
 </head>
@@ -363,6 +392,21 @@
             <div class="error-modal-body" id="errorModalMessage">Something went wrong.</div>
             <div class="error-modal-footer">
                 <button onclick="closeErrorModal()">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- UPDATE AVAILABLE MODAL -->
+    <div class="error-modal-overlay hidden" id="updateModalOverlay">
+        <div class="error-modal update-modal">
+            <div class="error-modal-header">
+                <span class="error-icon update-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 19h14"/></svg></span>
+                <h3>Update available</h3>
+            </div>
+            <div class="error-modal-body" id="updateModalMessage">A new version is available.</div>
+            <div class="update-modal-footer">
+                <button class="btn-later" onclick="closeUpdateModal()">Later</button>
+                <button class="btn-download" onclick="downloadUpdate()">Download new version</button>
             </div>
         </div>
     </div>
@@ -523,6 +567,34 @@
     }
     function closeErrorModalOnBackdrop(event) {
         if (event.target.id === "errorModalOverlay") closeErrorModal();
+    }
+
+    // ── UPDATE AVAILABLE MODAL ──
+    // main.cjs checks handlesport.com for a newer release once this page
+    // finishes loading and sends "update:available" via updateBridge
+    // (preload-admin.cjs) if there is one. Registered at the top level
+    // (not inside window "load") so the listener is ready as early as
+    // possible — contextBridge APIs are available before page scripts run.
+    let pendingUpdateUrl = null;
+
+    if (window.updateBridge) {
+        window.updateBridge.onUpdateAvailable((info) => {
+            pendingUpdateUrl = info.url;
+            document.getElementById("updateModalMessage").textContent =
+                `Version ${info.version} is available. Click below to open the download page in your browser.`;
+            document.getElementById("updateModalOverlay").classList.remove("hidden");
+        });
+    }
+
+    function closeUpdateModal() {
+        document.getElementById("updateModalOverlay").classList.add("hidden");
+    }
+
+    function downloadUpdate() {
+        if (pendingUpdateUrl && window.updateBridge) {
+            window.updateBridge.openDownloadUrl(pendingUpdateUrl);
+        }
+        closeUpdateModal();
     }
 
     window.addEventListener("load", init);

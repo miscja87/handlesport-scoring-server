@@ -719,6 +719,28 @@ app.get("/api/ping", async (req, res) => {
     }
 });
 
+// Checks handlesport.com for a newer scoring-server release. Called by
+// main.cjs right after the admin window finishes loading; if a newer
+// version is available, intro.html shows an update modal. Doesn't require
+// login — event/ring aren't set yet at this point in the app's lifecycle.
+app.get("/api/check-update", async (req, res) => {
+    try {
+        const key = crypto.createHash("md5").update(API_KEY).digest("hex");
+        const response = await fetch(`${HANDLESPORT_BACKEND_URL}/scoring/getScoringServer?key=${key}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+            return res.status(response.status).json(data);
+        }
+
+        return res.json(data);
+
+    } catch (err) {
+        console.error("Failed to check for updates:", err);
+        return res.status(500).json({ ok: false, error: "Failed to check for updates" });
+    }
+});
+
 // Get events
 app.get("/api/events", async (req, res) => {
 
