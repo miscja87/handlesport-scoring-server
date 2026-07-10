@@ -206,6 +206,26 @@
         .toast.show { opacity: 1; }
         .hidden { display: none !important; }
 
+        /* ── OFFLINE BANNER — fixed overlay, doesn't participate in the
+           flex layout below, so it can't disturb the pixel-tight 100svh
+           fit of header/grid/footer. Sits above the loading screen (100)
+           so it explains why the app might be stuck loading. ── */
+        .offline-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #cc3340;
+            color: white;
+            text-align: center;
+            font-size: clamp(11px, 2.5vw, 14px);
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            padding: 8px 12px;
+            padding-top: calc(8px + env(safe-area-inset-top, 0px));
+            z-index: 150;
+        }
+
         /* ── CONNECTION ERROR MODAL ── */
         .error-modal-overlay {
             position: fixed;
@@ -252,6 +272,8 @@
     </style>
 </head>
 <body>
+
+    <div class="offline-banner hidden" id="offlineBanner">⚠ You are offline — scores won't be sent</div>
 
     <div class="loading" id="loading">Connecting...</div>
 
@@ -470,16 +492,21 @@
     function applyState(newState) {
         state = newState;
         const stateLabel = document.getElementById("stateLabel");
-        const scoreGrid  = document.getElementById("scoreGrid");
         if (state === "play") {
             stateLabel.textContent = "PLAY";
             stateLabel.className = "state play";
-            scoreGrid.classList.remove("disabled");
         } else {
             stateLabel.textContent = "STOP";
             stateLabel.className = "state stop";
-            scoreGrid.classList.add("disabled");
         }
+        updateScoreGridEnabled();
+    }
+
+    // Grid is enabled only while PLAY *and* online — offline taps would
+    // never actually reach the server, so blocking them here avoids the
+    // referee thinking they scored when nothing was sent.
+    function updateScoreGridEnabled() {
+        document.getElementById("scoreGrid").classList.toggle("disabled", state !== "play" || !navigator.onLine);
     }
     function swapColors() {
         leftColor = leftColor === "red" ? "blue" : "red";
@@ -494,6 +521,10 @@
             showToast("Scoring blocked — state STOP");
             return;
         }
+        if (!navigator.onLine) {
+            showToast("Scoring blocked — offline");
+            return;
+        }
         history[color].push(scores[color]);
         scores[color] = Math.max(0, parseFloat((scores[color] + points).toFixed(1)));
         updateDisplay();
@@ -503,6 +534,10 @@
     async function undoScore(color) {
         if (state === "stop") {
             showToast("Scoring blocked — state STOP");
+            return;
+        }
+        if (!navigator.onLine) {
+            showToast("Scoring blocked — offline");
             return;
         }
         if (history[color].length === 0) {
@@ -619,6 +654,21 @@
         toast.classList.add("show");
         setTimeout(() => toast.classList.remove("show"), 2000);
     }
+
+    // ── OFFLINE BANNER ──
+    // navigator.onLine only means "there's a network interface up" — it
+    // can't tell if the server is actually reachable (that's what the
+    // 3-consecutive-failures modal in sendScore() is for). But it catches
+    // the common case (wifi off, airplane mode) instantly, before the
+    // referee even tries to score, instead of only finding out on failure.
+    function updateOfflineBanner() {
+        document.getElementById("offlineBanner").classList.toggle("hidden", navigator.onLine);
+        updateScoreGridEnabled();
+    }
+
+    window.addEventListener("online", updateOfflineBanner);
+    window.addEventListener("offline", updateOfflineBanner);
+    updateOfflineBanner();
 
     window.addEventListener("load", init);
 </script>

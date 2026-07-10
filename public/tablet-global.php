@@ -233,6 +233,26 @@ $startScore    = $startScore    ?? 0;
         }
         .toast.show { opacity: 1; }
         .hidden { display: none !important; }
+
+        /* ── OFFLINE BANNER — fixed overlay, doesn't participate in the
+           flex layout below, so it can't disturb the pixel-tight 100svh
+           fit of header/grid/footer. Sits above the loading screen (100)
+           so it explains why the app might be stuck loading. ── */
+        .offline-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #cc3340;
+            color: white;
+            text-align: center;
+            font-size: clamp(11px, 2.5vw, 14px);
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            padding: 8px 12px;
+            padding-top: calc(8px + env(safe-area-inset-top, 0px));
+            z-index: 150;
+        }
     </style>
 </head>
 <body>
@@ -248,6 +268,24 @@ $startScore    = $startScore    ?? 0;
     <input type="hidden" id="cfgButtons" value="<?php echo htmlspecialchars(json_encode($buttons)); ?>">
     <input type="hidden" id="cfgDefaultButton" value="<?php echo htmlspecialchars($defaultButton); ?>">
     <input type="hidden" id="cfgStartScore" value="<?php echo htmlspecialchars($startScore); ?>">
+
+    <div class="offline-banner hidden" id="offlineBanner">⚠ You are offline — scores won't be sent</div>
+    <script>
+        // Plain (non-module) script, deliberately separate from the Firestore
+        // module below — that module's static import blocks on common.firestore.js's
+        // own top-level Firestore reads, which can hang while offline. This
+        // banner needs to work even if that import never resolves.
+        function updateOfflineBanner() {
+            document.getElementById("offlineBanner").classList.toggle("hidden", navigator.onLine);
+            // Not defined yet if the Firestore module below hasn't finished
+            // loading — it re-syncs the grid itself once it does (see the
+            // window.updateScoreGridEnabled() call near the bottom of that script).
+            if (window.updateScoreGridEnabled) window.updateScoreGridEnabled();
+        }
+        window.addEventListener("online", updateOfflineBanner);
+        window.addEventListener("offline", updateOfflineBanner);
+        updateOfflineBanner();
+    </script>
 
     <div class="loading" id="loading">Connecting...</div>
 
@@ -455,16 +493,23 @@ $startScore    = $startScore    ?? 0;
     function applyState(newState) {
         state = newState;
         const stateLabel = document.getElementById("stateLabel");
-        const scoreGrid  = document.getElementById("scoreGrid");
         if (state === "play") {
             stateLabel.textContent = "PLAY";
             stateLabel.className = "state play";
-            scoreGrid.classList.remove("disabled");
         } else {
             stateLabel.textContent = "STOP";
             stateLabel.className = "state stop";
-            scoreGrid.classList.add("disabled");
         }
+        updateScoreGridEnabled();
+    }
+
+    // Grid is enabled only while PLAY *and* online — offline taps would
+    // never actually reach Firestore, so blocking them here avoids the
+    // referee thinking they scored when nothing was sent. Exposed on
+    // window because the offline-banner script (deliberately outside this
+    // module — see the note near its <script> tag) needs to call it too.
+    function updateScoreGridEnabled() {
+        document.getElementById("scoreGrid").classList.toggle("disabled", state !== "play" || !navigator.onLine);
     }
     function swapColors() {
         leftColor = leftColor === "red" ? "blue" : "red";
@@ -491,6 +536,10 @@ $startScore    = $startScore    ?? 0;
             showToast("Scoring blocked — state STOP");
             return;
         }
+        if (!navigator.onLine) {
+            showToast("Scoring blocked — offline");
+            return;
+        }
         const before = scores[color];
         const after = Math.max(0, parseFloat((before + points).toFixed(1)));
         const actualDelta = parseFloat((after - before).toFixed(1));
@@ -503,6 +552,10 @@ $startScore    = $startScore    ?? 0;
     async function undoScore(color) {
         if (state === "stop") {
             showToast("Scoring blocked — state STOP");
+            return;
+        }
+        if (!navigator.onLine) {
+            showToast("Scoring blocked — offline");
             return;
         }
         if (history[color].length === 0) {
@@ -599,6 +652,11 @@ $startScore    = $startScore    ?? 0;
     window.openMenu = openMenu;
     window.closeMenu = closeMenu;
     window.closeMenuOnBackdrop = closeMenuOnBackdrop;
+    window.updateScoreGridEnabled = updateScoreGridEnabled;
+
+    // The offline-banner script's earlier calls (page load, before this
+    // module finished) couldn't reach this yet — re-sync now that it can.
+    updateScoreGridEnabled();
 
     // NOT window.addEventListener("load", init) — module scripts already
     // execute after the DOM is parsed, and this module does real async work
