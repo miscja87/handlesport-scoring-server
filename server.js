@@ -34,7 +34,14 @@ app.use(express.static(path.join(__dirname, "public")));
 const PORT = 8080;
 const LOCAL_IP = getLocalIP();
 
-initLogger(path.join(__dirname, "logs"));
+// In a packaged Electron build, __dirname resolves inside the read-only
+// app.asar archive — mkdirSync/writes there fail silently (no console
+// attached to the packaged .exe), which hung the whole app on startup with
+// no window and no error. main.cjs sets HANDLESPORT_LOGS_DIR to a real
+// writable folder (Electron's userData dir) before importing this module;
+// falls back to the old __dirname-relative path when run standalone (e.g.
+// plain `node server.js`, outside Electron).
+initLogger(process.env.HANDLESPORT_LOGS_DIR || path.join(__dirname, "logs"));
 
 // Initial state
 let adminClient = null;

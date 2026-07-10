@@ -120,10 +120,27 @@ ipcMain.on("display:update", (event, payload) => {
 });
 
 app.whenReady().then(async () => {
-    const { startServer } = await import("./server.js");
+    try {
+        // server.js's logger writes to this folder — must be a real writable
+        // path, not one relative to the app's own install directory (in a
+        // packaged build that's inside the read-only app.asar archive, and
+        // mkdirSync/writes there fail). Electron's userData dir is always
+        // writable both in dev and packaged.
+        process.env.HANDLESPORT_LOGS_DIR = require("path").join(app.getPath("userData"), "logs");
 
-    startServer();
-    createWindow();
+        const { startServer } = await import("./server.js");
+
+        startServer();
+        createWindow();
+    } catch (err) {
+        // Packaged Windows builds have no console attached, so an unhandled
+        // failure here used to hang silently — orphaned processes, no
+        // window, nothing telling the user (or us) what went wrong.
+        console.error("Failed to start:", err);
+        const { dialog } = require("electron");
+        dialog.showErrorBox("HandleSport failed to start", String(err && err.stack || err));
+        app.quit();
+    }
 });
 
 app.on("window-all-closed", () => {
