@@ -178,7 +178,7 @@ async function updateDetails(event, ring, updateData) {
 // of time. onUpdate(refereeId, data) fires once per changed referee doc;
 // status/details docs living in the same subcollection are filtered out.
 // Returns the unsubscribe function so the caller can tear the listener down.
-function listenToRefereeScores(event, ring, onUpdate) {
+function listenToRefereeScores(event, ring, onUpdate, onError) {
     const ringCollection = collection(db, "score", `event_${event}`, `ring_${ring}`);
 
     return onSnapshot(ringCollection, (snapshot) => {
@@ -193,6 +193,7 @@ function listenToRefereeScores(event, ring, onUpdate) {
         });
     }, (error) => {
         console.log("❌ Error listening to referee scores", error);
+        if (onError) onError(error);
     });
 }
 

@@ -42,6 +42,29 @@ body {
     font-weight: 400;
 }
 
+/* ── GLOBAL SYNC BADGE — visible only in GLOBAL mode, flags when the
+   server's Firestore listener for referee scores has dropped ── */
+.global-sync-badge {
+    display: inline-block;
+    margin-left: 16px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    vertical-align: middle;
+    background: #2a9a5a;
+    color: white;
+}
+.global-sync-badge.lost {
+    background: #cc3340;
+    animation: globalSyncLostPulse 1s ease-in-out infinite;
+}
+@keyframes globalSyncLostPulse {
+    0%, 100% { filter: brightness(1); }
+    50%      { filter: brightness(1.4); }
+}
+
 .display-toggle-btn {
     margin-left: 16px;
     background: #2a3550;

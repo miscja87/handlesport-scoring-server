@@ -126,36 +126,7 @@ app.post("/api/login/admin", async (req, res) => {
             // which mode is active.
             if (isGlobalMode) {
                 globalConnectedReferees = new Set();
-
-                unsubscribeRefereeScores = listenToRefereeScores(event, ring, (refereeId, data) => {
-                    // The referee's own device sets its Firestore doc's
-                    // status to "ok" once it finishes authenticating via
-                    // the global link — mirrors what /api/login/referee
-                    // does for LOCAL mode, so the QR modal closes and the
-                    // referee card lights up the same way either way. Only
-                    // fires once per referee — the same doc's status stays
-                    // "ok" on every later score update too.
-                    if (data?.status === "ok" && !globalConnectedReferees.has(refereeId)) {
-                        globalConnectedReferees.add(refereeId);
-                        console.log(`[GLOBAL] Referee ${refereeId} connected`);
-                        broadcastAdmin({ referee: refereeId, action: ACTIONS.CONNECTED });
-                    }
-
-                    if (!data?.score) return;
-
-                    // Firestore stores these as strings like "21.0" (the
-                    // referee's incrementRefereeScore transaction always
-                    // calls .toFixed(1)) — parseFloat here mirrors what the
-                    // LOCAL POST route already does, so a whole number shows
-                    // as "21" on the admin UI instead of "21.0".
-                    const red = parseFloat(data.score.red);
-                    const blue = parseFloat(data.score.blue);
-                    const updated = updateScore(refereeId, data.action, red, blue);
-                    if (!updated) return;
-
-                    console.log(`[GLOBAL] Updated score for referee ${refereeId}:`, updated);
-                    broadcastAdmin({ referee: refereeId, score: updated.score, action: updated.action });
-                });
+                startGlobalRefereeListener();
             }
         }
 
@@ -175,6 +146,57 @@ app.post("/api/login/admin", async (req, res) => {
         res.status(401).json({ ok: false, error: err.message });
     }
 });
+
+// Sets up (or re-sets-up, after an error) the GLOBAL-mode Firestore listener
+// for referee score/status changes. Firestore's onSnapshot listener is dead
+// once its error callback fires — it won't recover on its own — so on error
+// this also notifies the admin UI (a topbar badge, admin-shared.js) and
+// retries after a short delay, re-arming itself as long as we're still in
+// GLOBAL mode. Without this, a lost listener would fail completely silently:
+// referees keep scoring into Firestore, the admin just never finds out.
+function startGlobalRefereeListener() {
+    unsubscribeRefereeScores = listenToRefereeScores(
+        event, ring,
+        (refereeId, data) => {
+            // The referee's own device sets its Firestore doc's status to
+            // "ok" once it finishes authenticating via the global link —
+            // mirrors what /api/login/referee does for LOCAL mode, so the QR
+            // modal closes and the referee card lights up the same way
+            // either way. Only fires once per referee — the same doc's
+            // status stays "ok" on every later score update too.
+            if (data?.status === "ok" && !globalConnectedReferees.has(refereeId)) {
+                globalConnectedReferees.add(refereeId);
+                console.log(`[GLOBAL] Referee ${refereeId} connected`);
+                broadcastAdmin({ referee: refereeId, action: ACTIONS.CONNECTED });
+            }
+
+            if (!data?.score) return;
+
+            // Firestore stores these as strings like "21.0" (the referee's
+            // incrementRefereeScore transaction always calls .toFixed(1)) —
+            // parseFloat here mirrors what the LOCAL POST route already
+            // does, so a whole number shows as "21" on the admin UI instead
+            // of "21.0".
+            const red = parseFloat(data.score.red);
+            const blue = parseFloat(data.score.blue);
+            const updated = updateScore(refereeId, data.action, red, blue);
+            if (!updated) return;
+
+            console.log(`[GLOBAL] Updated score for referee ${refereeId}:`, updated);
+            broadcastAdmin({ referee: refereeId, score: updated.score, action: updated.action });
+        },
+        (error) => {
+            console.error("[GLOBAL] Referee score listener lost:", error.message);
+            broadcastAdmin({ action: "global_sync_status", status: "lost" });
+
+            setTimeout(() => {
+                if (isGlobalMode) startGlobalRefereeListener();
+            }, 3000);
+        }
+    );
+
+    broadcastAdmin({ action: "global_sync_status", status: "ok" });
+}
 
 // Login as referee
 app.post("/api/login/referee", async (req, res) => {

@@ -93,6 +93,9 @@
 
             document.getElementById("ringNumber").textContent = setupRingId;
 
+            const globalSyncBadge = document.getElementById("globalSyncBadge");
+            if (globalSyncBadge) globalSyncBadge.classList.toggle("hidden", !isGlobalMode);
+
             const refereeCountFromServer = parseInt(data.referees) || refereeCount;
             const startScoreFromServer = data.refereeStartScore !== undefined
                 ? parseFloat(data.refereeStartScore)
@@ -117,6 +120,10 @@
 
                 if (data.action === "update_score") {
                     updateRefereeScore(data.referee, data.score);
+                }
+
+                if (data.action === "global_sync_status") {
+                    updateGlobalSyncBadge(data.status);
                 }
             };
 
@@ -1119,6 +1126,24 @@
 
         if (hooks.onRefereeScoreChanged) hooks.onRefereeScoreChanged();
         if (hooks.onRefereeConnected) hooks.onRefereeConnected(refereeId);
+    }
+
+    // GLOBAL mode only — reflects server.js's startGlobalRefereeListener()
+    // status. "lost" means its Firestore listener died (permissions,
+    // network) and referee updates have silently stopped reaching this
+    // admin until the server's automatic retry reconnects it — this badge
+    // is the only signal that's happening.
+    function updateGlobalSyncBadge(status) {
+        const badge = document.getElementById("globalSyncBadge");
+        if (!badge) return;
+
+        const lost = status === "lost";
+        badge.classList.toggle("lost", lost);
+        badge.textContent = lost ? "⚠ GLOBAL SYNC LOST" : "GLOBAL SYNC: OK";
+
+        if (lost) {
+            showToast("GLOBAL sync lost — referee updates may not be arriving");
+        }
     }
 
     function updateRefereeScore(refereeId, score) {
