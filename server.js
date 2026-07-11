@@ -94,6 +94,39 @@ app.get("/stream/clients", (req, res) => {
 
 // ── AUTH / LOGIN ──
 
+// Authenticates against handlesport.com's own user account system (not the
+// scoring-server login below) — called from login.html before the app even
+// gets to the /intro setup screen.
+app.post("/api/login/user", async (req, res) => {
+    try {
+        const { username, password } = req.body;
+
+        const bodyParams = new URLSearchParams({
+            username: username,
+            password: password,
+            json: "true"
+        });
+
+        const response = await fetch(`${HANDLESPORT_BACKEND_URL}/user/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: bodyParams.toString()
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return res.status(response.status).json(data);
+        }
+
+        return res.json(data);
+
+    } catch (err) {
+        console.error("Failed to login user:", err);
+        return res.status(500).json({ ok: false, error: "Failed to login" });
+    }
+});
+
 // Login as server (for Firestore access)
 app.post("/api/login/admin", async (req, res) => {
     try {
@@ -931,6 +964,10 @@ app.get("/display", (req, res) => {
 
 app.get("/intro", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "intro.html"));
+});
+
+app.get("/login", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "login.html"));
 });
 
 // ── SERVER START ──

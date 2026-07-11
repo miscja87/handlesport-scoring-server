@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link rel="icon" href="/favicon.ico">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #1a1f2e;
+            font-family: 'Arial', sans-serif;
+            color: #e8eaf0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .card {
+            background: #1f2638;
+            border-radius: 12px;
+            width: 380px;
+            max-width: 100%;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+
+        .card-header {
+            padding: 28px 28px 20px;
+            border-bottom: 1px solid #2a3550;
+        }
+        .card-header h1 {
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: 0.5px;
+        }
+        .card-header p {
+            color: #8a93a8;
+            font-size: 13px;
+            margin-top: 6px;
+        }
+
+        .card-body {
+            padding: 24px 28px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .field label {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: #a0aab8;
+            text-transform: uppercase;
+        }
+        .field input {
+            background: #252d3f;
+            border: 1px solid #3a4560;
+            color: #e8eaf0;
+            padding: 12px 14px;
+            border-radius: 6px;
+            font-size: 15px;
+            outline: none;
+        }
+        .field input:focus { border-color: #1a6fa8; }
+        .field input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .login-btn {
+            margin-top: 4px;
+            background: #2a9a5a;
+            border: none;
+            color: white;
+            font-weight: 900;
+            font-size: 15px;
+            letter-spacing: 0.5px;
+            padding: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: filter 0.15s, opacity 0.15s;
+        }
+        .login-btn:active:not(:disabled) { filter: brightness(1.15); }
+        .login-btn:disabled {
+            background: #3a4560;
+            color: #6a7590;
+            cursor: not-allowed;
+        }
+
+        .status-msg {
+            font-size: 13px;
+            color: #8a93a8;
+            text-align: center;
+        }
+        .status-msg.error { color: #e05a5a; }
+
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #3a4560;
+            border-top-color: #4a9fd8;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── ERROR MODAL (same shell used elsewhere in the app) ── */
+        .error-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.65);
+            z-index: 300;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .error-modal {
+            background: #1f2638;
+            border-radius: 10px;
+            width: 380px;
+            max-width: 90vw;
+            overflow: hidden;
+            border: 1px solid #5a2a30;
+        }
+        .error-modal-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 18px 20px;
+            border-bottom: 1px solid #2a3550;
+        }
+        .error-modal-header .error-icon { color: #e05a5a; font-size: 20px; }
+        .error-modal-header h3 { color: #e05a5a; font-size: 16px; font-weight: 700; }
+        .error-modal-body { padding: 20px; color: #c8ccd8; font-size: 14px; line-height: 1.5; }
+        .error-modal-footer { padding: 0 20px 20px; }
+        .error-modal-footer button {
+            width: 100%;
+            border: none;
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            padding: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #cc3340;
+        }
+        .error-modal-footer button:active { filter: brightness(1.2); }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <div class="card-header">
+            <h1>HandleSport Scoring</h1>
+            <p>Sign in to continue.</p>
+        </div>
+
+        <div class="card-body">
+            <form id="loginForm" onsubmit="return false;">
+                <div class="field">
+                    <label>Username</label>
+                    <input type="text" id="usernameInput" autocomplete="username" oninput="onFieldChange()">
+                </div>
+
+                <div class="field" style="margin-top: 20px;">
+                    <label>Password</label>
+                    <input type="password" id="passwordInput" autocomplete="current-password" oninput="onFieldChange()">
+                </div>
+
+                <button type="submit" class="login-btn" id="loginBtn" disabled onclick="doLogin()" style="margin-top: 20px; width: 100%;">LOGIN</button>
+            </form>
+
+            <div class="status-msg" id="statusMsg"></div>
+        </div>
+    </div>
+
+    <!-- ERROR MODAL -->
+    <div class="error-modal-overlay hidden" id="errorModalOverlay" onclick="closeErrorModalOnBackdrop(event)">
+        <div class="error-modal">
+            <div class="error-modal-header">
+                <span class="error-icon">⚠</span>
+                <h3 id="errorModalTitle">Error</h3>
+            </div>
+            <div class="error-modal-body" id="errorModalMessage">Something went wrong.</div>
+            <div class="error-modal-footer">
+                <button onclick="closeErrorModal()">OK</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const usernameInput = document.getElementById("usernameInput");
+    const passwordInput = document.getElementById("passwordInput");
+    const loginBtn = document.getElementById("loginBtn");
+    const statusMsg = document.getElementById("statusMsg");
+
+    // ── INIT ──
+    // If a previous successful login left a session behind, skip straight
+    // to setup instead of asking again every launch. Placeholder key/shape —
+    // adjust once the real auth API's response (token? expiry?) is known.
+    function init() {
+        const session = localStorage.getItem("handlesportSession");
+        if (session) {
+            window.location.href = "/intro";
+        }
+    }
+
+    // ── VALIDATION ──
+    function onFieldChange() {
+        loginBtn.disabled = !usernameInput.value.trim() || !passwordInput.value;
+    }
+
+    // ── LOGIN ──
+    // Proxied through the local server (POST /api/login/user), which forwards
+    // to https://www.handlesport.com/user/login as form data. On success it
+    // responds 200 with {"location": "..."} (no result/ok field) — a
+    // non-200 status is the only failure signal, so that's all that's checked.
+    async function doLogin() {
+        if (loginBtn.disabled) return;
+
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+
+        setLoading(true);
+
+        try {
+            const res = await fetch("http://localhost:8080/api/login/user", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username, password })
+            });
+
+            if (!res.ok) {
+                throw new Error("Invalid username or password.");
+            }
+
+            const data = await res.json();
+            localStorage.setItem("handlesportSession", JSON.stringify({ username, loggedInAt: Date.now(), raw: data }));
+            window.location.href = "/intro";
+
+        } catch (err) {
+            setLoading(false);
+            showErrorModal("Login failed", err.message || "Invalid username or password.");
+        }
+    }
+
+    function setLoading(loading) {
+        usernameInput.disabled = loading;
+        passwordInput.disabled = loading;
+        loginBtn.disabled = loading;
+        statusMsg.innerHTML = loading ? `<span class="spinner"></span> Signing in...` : "";
+    }
+
+    // ── ERROR MODAL ──
+    function showErrorModal(title, message) {
+        document.getElementById("errorModalTitle").textContent = title;
+        document.getElementById("errorModalMessage").textContent = message;
+        document.getElementById("errorModalOverlay").classList.remove("hidden");
+    }
+    function closeErrorModal() {
+        document.getElementById("errorModalOverlay").classList.add("hidden");
+    }
+    function closeErrorModalOnBackdrop(event) {
+        if (event.target.id === "errorModalOverlay") closeErrorModal();
+    }
+
+    window.addEventListener("load", init);
+</script>
+
+</body>
+</html>

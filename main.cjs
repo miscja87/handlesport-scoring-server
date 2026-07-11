@@ -14,7 +14,7 @@ function createWindow() {
         }
     });
 
-    win.loadURL("http://localhost:8080/intro");
+    win.loadURL("http://localhost:8080/login");
 
     setupSerialPortSupport(win);
 
