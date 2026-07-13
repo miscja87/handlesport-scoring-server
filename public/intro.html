@@ -519,13 +519,34 @@
         }
     }
 
+    // Reads the "event" field login.html stored in localStorage — present
+    // only for accounts scoped to a single event, null/absent for everyone
+    // else (falls back to null on any parse error too, so a corrupt/missing
+    // session never blocks the event list from showing).
+    function getSessionEventId() {
+        try {
+            const session = JSON.parse(localStorage.getItem("handlesportSession"));
+            return session && session.event !== null && session.event !== undefined ? session.event : null;
+        } catch (err) {
+            return null;
+        }
+    }
+
     async function loadEvents() {
         statusMsg.innerHTML = `<span class="spinner"></span> Loading events...`;
         try {
             const base = "http://localhost:8080";
             const res = await fetch(`${base}/api/events`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const events = await res.json();
+            let events = await res.json();
+
+            // Accounts scoped to a single event (login.html stores this from
+            // the login response's "event" field) only ever see that one
+            // event here — everyone else sees the full list.
+            const sessionEventId = getSessionEventId();
+            if (sessionEventId !== null) {
+                events = events.filter(ev => String(ev.id) === String(sessionEventId));
+            }
 
             eventSelect.innerHTML = `<option value="">Select event</option>`;
             events.forEach(ev => {

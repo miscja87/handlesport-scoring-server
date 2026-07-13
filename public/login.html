@@ -251,7 +251,15 @@
             }
 
             const data = await res.json();
-            localStorage.setItem("handlesportSession", JSON.stringify({ username, loggedInAt: Date.now(), raw: data }));
+            // "event" is only present for accounts scoped to a single event —
+            // intro.html uses it to filter the event dropdown down to just
+            // that one, showing every event when it's absent.
+            localStorage.setItem("handlesportSession", JSON.stringify({
+                username,
+                loggedInAt: Date.now(),
+                event: data.event ?? null,
+                raw: data
+            }));
             window.location.href = "/intro";
 
         } catch (err) {
