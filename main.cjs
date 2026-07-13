@@ -96,18 +96,6 @@ function openDisplayWindow(specialty) {
     const specialtyParam = (specialty || "sp").toLowerCase();
     displayWin.loadURL(`http://localhost:8080/display?specialty=${specialtyParam}`);
 
-    // F11 toggling fullscreen is a Chromium default only on Windows/Linux —
-    // macOS has no such binding (native fullscreen there is Cmd+Ctrl+F or
-    // the green traffic-light button). Wiring it explicitly makes F11 behave
-    // the same on every platform, since this window often ends up on a
-    // projector/second screen during an event.
-    displayWin.webContents.on("before-input-event", (event, input) => {
-        if (input.type === "keyDown" && input.key === "F11") {
-            event.preventDefault();
-            displayWin.setFullScreen(!displayWin.isFullScreen());
-        }
-    });
-
     displayWin.on("closed", () => {
         displayWin = null;
     });
