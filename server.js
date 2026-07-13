@@ -775,7 +775,18 @@ app.get("/api/app-version", (req, res) => {
 app.get("/api/check-update", async (req, res) => {
     try {
         const key = crypto.createHash("md5").update(API_KEY).digest("hex");
-        const response = await fetch(`${HANDLESPORT_BACKEND_URL}/scoring/getScoringServer?key=${key}`);
+
+        // process.platform reflects whatever OS this server is actually
+        // running on (it's packaged per-platform) — no need to pass it in
+        // from main.cjs. "win32" -> "windows", "darwin" -> "mac", anything
+        // else (e.g. "linux") passed through as-is.
+        const os = process.platform === "win32" ? "win"
+            : process.platform === "darwin" ? "mac"
+            : process.platform;
+
+        console.log(`Checking for updates (key=${key}, os=${os})...`);
+
+        const response = await fetch(`${HANDLESPORT_BACKEND_URL}/scoring/getScoringServer?key=${key}&os=${os}`);
         const data = await response.json();
 
         if (!response.ok) {
