@@ -3,6 +3,8 @@
 Genera la guida utente PDF per HandleSport Scoring System.
 """
 
+import os
+from PIL import Image as PILImage
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.lib import colors
@@ -10,10 +12,27 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.platypus import (
     BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer,
-    PageBreak, ListFlowable, ListItem, Table, TableStyle, KeepTogether
+    PageBreak, ListFlowable, ListItem, Table, TableStyle, KeepTogether, Image
 )
 
 OUTPUT_PATH = "HandleSport_Guida_Utente.pdf"
+IMG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "screenshots")
+CONTENT_WIDTH = A4[0] - 2 * 2.2 * cm  # matches leftMargin+rightMargin below
+
+
+def screenshot(filename, caption=None, max_width=CONTENT_WIDTH):
+    """Scaled, framed screenshot Image flowable, with an optional caption."""
+    path = os.path.join(IMG_DIR, filename)
+    with PILImage.open(path) as im:
+        px_w, px_h = im.size
+    w = max_width
+    h = w * px_h / px_w
+    flow = [
+        Image(path, width=w, height=h),
+    ]
+    if caption:
+        flow.append(Paragraph(caption, caption_style))
+    return KeepTogether(flow)
 
 # ── COLORS ──
 NAVY = colors.HexColor("#12233c")
@@ -56,6 +75,9 @@ warn_style = ParagraphStyle("WarnCustom", parent=body_style, backColor=WARN_BG,
 
 label_style = ParagraphStyle("LabelCustom", parent=body_style, fontName="Helvetica-Bold",
                               fontSize=10, textColor=NAVY, spaceAfter=2)
+caption_style = ParagraphStyle("CaptionCustom", parent=body_style, fontName="Helvetica-Oblique",
+                                fontSize=8.5, textColor=GREY, alignment=TA_CENTER,
+                                spaceBefore=4, spaceAfter=14)
 
 
 def para(text, style=body_style):
@@ -70,11 +92,11 @@ def bullets(items, style=bullet_style):
 
 
 def note(text):
-    return Paragraph("ℹ️ " + text, note_style)
+    return Paragraph("<font color='#1a6fa8'><b>NOTA — </b></font>" + text, note_style)
 
 
 def warn(text):
-    return Paragraph("⚠️ " + text, warn_style)
+    return Paragraph("<font color='#b3212c'><b>ATTENZIONE — </b></font>" + text, warn_style)
 
 
 def h1(text):
@@ -209,6 +231,7 @@ story.append(para(
     "All'avvio dell'applicazione compare la schermata di <b>Login</b>, dove va inserito Username e Password "
     "dell'account HandleSport."
 ))
+story.append(screenshot("shot_login.png", "La schermata di Login.", max_width=8 * cm))
 story.append(bullets([
     "Il pulsante <b>LOGIN</b> si abilita solo quando entrambi i campi sono compilati.",
     "Se le credenziali sono corrette, si viene reindirizzati automaticamente alla schermata di configurazione.",
@@ -233,6 +256,7 @@ story.append(para(
     "Dopo il login si arriva alla schermata <b>Scoring setup</b>, dove si scelgono i parametri "
     "dell'incontro da gestire, prima di entrare nel pannello Admin vero e proprio."
 ))
+story.append(screenshot("shot_setup.png", "La schermata Scoring setup, con Event, Ring, Mode e Specialty selezionati.", max_width=9 * cm))
 
 story.append(h2("3.1 Indicatore di connessione"))
 story.append(para(
@@ -327,14 +351,14 @@ story.append(para(
 story.append(h2("5.1 Barra superiore"))
 story.append(bullets([
     "<b>RING / Nome evento</b> — indica su quale ring e per quale evento si sta operando;",
-    "<b>📺 OPEN DISPLAY</b> — apre/porta in primo piano la finestra Display pubblica (vedi sezione 9);",
-    "<b>📄 DOWNLOAD LOG</b> — scarica il log della sessione corrente (utile per rivedere cosa è successo "
+    "<b>OPEN DISPLAY</b> — apre/porta in primo piano la finestra Display pubblica (vedi sezione 9);",
+    "<b>DOWNLOAD LOG</b> — scarica il log della sessione corrente (utile per rivedere cosa è successo "
     "durante l'incontro o per assistenza tecnica);",
-    "<b>🗑 CLEAR ALL TOKENS</b> — cancella l'autenticazione di tutti gli arbitri contemporaneamente (vedi "
+    "<b>CLEAR ALL TOKENS</b> — cancella l'autenticazione di tutti gli arbitri contemporaneamente (vedi "
     "sezione 6.3);",
-    "<b>🔌 SERIAL</b> — collega una centralina/controller arbitrale via cavo seriale (solo LOCAL), in "
+    "<b>SERIAL</b> — collega una centralina/controller arbitrale via cavo seriale (solo LOCAL), in "
     "alternativa ai tablet;",
-    "<b>👥 TEAM SPARRING</b> — attiva la modalità a squadre (solo pannello SP, vedi sezione 7.5).",
+    "<b>TEAM SPARRING</b> — attiva la modalità a squadre (solo pannello SP, vedi sezione 7.5).",
 ]))
 
 story.append(h2("5.2 Caricamento categoria"))
@@ -389,7 +413,7 @@ story.append(para(
     "di fargli scansionare il QR code."
 ))
 
-story.append(h3("🗑 CLEAR TOKEN"))
+story.append(h3("CLEAR TOKEN"))
 story.append(para(
     "Invalida completamente l'autenticazione dell'arbitro: dopo averlo usato, l'arbitro dovrà "
     "scansionare un <b>nuovo</b> QR code (generato con AUTH) per ricollegarsi — il vecchio link smette "
@@ -419,6 +443,8 @@ story.append(PageBreak())
 # 7. MODALITÀ SPARRING (SP)
 # ══════════════════════════════════════════════════════════
 story.append(h1("7. Modalità Sparring (SP)"))
+story.append(screenshot("shot_admin_sp.png", "Il pannello Admin in modalità Sparring, a incontro avviato."))
+story.append(PageBreak())
 
 story.append(h2("7.1 Punteggio principale"))
 story.append(para(
@@ -458,7 +484,7 @@ story.append(para(
 
 story.append(h2("7.5 Team Sparring"))
 story.append(para(
-    "Attivando <b>👥 TEAM SPARRING</b> dalla barra superiore (richiede conferma), l'incontro passa alla "
+    "Attivando <b>TEAM SPARRING</b> dalla barra superiore (richiede conferma), l'incontro passa alla "
     "modalità a squadre: ogni round viene combattuto da un membro diverso della squadra."
 ))
 story.append(bullets([
@@ -485,12 +511,15 @@ story.append(para(
     "corrisponde al conteggio automatico degli arbitri. Se il punteggio viene alterato, compare un "
     "avviso giallo che lo segnala chiaramente prima di confermare."
 ))
+story.append(screenshot("shot_winner_modal.png", "Il popup di conferma vincitore, con RED in vantaggio evidenziato.", max_width=11 * cm))
 story.append(PageBreak())
 
 # ══════════════════════════════════════════════════════════
 # 8. MODALITÀ PATTERN (PT)
 # ══════════════════════════════════════════════════════════
 story.append(h1("8. Modalità Pattern (PT)"))
+story.append(screenshot("shot_admin_pt.png", "Il pannello Admin in modalità Pattern, con LEVEL 0 e TRAD.SPARRING visibili nella riga centrale."))
+story.append(PageBreak())
 
 story.append(h2("8.1 Selezione della forma (pattern)"))
 story.append(para(
@@ -542,7 +571,7 @@ story.append(PageBreak())
 # ══════════════════════════════════════════════════════════
 story.append(h1("9. La finestra Display"))
 story.append(para(
-    "Si apre con il pulsante <b>📺 OPEN DISPLAY</b> nella barra superiore del pannello Admin. È pensata "
+    "Si apre con il pulsante <b>OPEN DISPLAY</b> nella barra superiore del pannello Admin. È pensata "
     "per essere mostrata al pubblico su un proiettore o un secondo monitor."
 ))
 story.append(bullets([
