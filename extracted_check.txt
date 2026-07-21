@@ -1,0 +1,44 @@
+HandleSport
+ Scoring System
+ Guida Utente — Pannello Admin
+ Modalità Sparring (SP) e Pattern (PT)
+ Versione 1.0
+ Questa guida spiega come utilizzare il pannello di amministrazione per gestire il punteggio durante gli
+ incontri, sia in modalità Sparring che Pattern, in ambiente LOCAL o GLOBAL.
+
+---OUTLINE---
+Indice
+1. Introduzione
+2. Accesso e primo avvio
+3. Schermata di configurazione (Setup)
+  3.1 Indicatore di connessione
+  3.2 Event e Ring
+  3.3 Mode — LOCAL o GLOBAL
+  3.4 Specialty
+  3.5 Continue
+4. LOCAL vs GLOBAL
+  4.1 Modalità LOCAL
+  4.2 Modalità GLOBAL
+5. Il pannello Admin — elementi comuni
+  5.1 Barra superiore
+  5.2 Caricamento categoria
+  5.3 Gestione arbitri
+  5.4 RESET ALL
+6. Gestione degli arbitri
+  6.1 Abilitare/disabilitare un arbitro
+  6.2 Modifica manuale del punteggio
+7. Modalità Sparring (SP)
+  7.1 Punteggio principale
+  7.2 Timer e round
+  7.3 Warning e Penalty
+  7.4 Golden Score
+  7.5 Team Sparring
+  7.6 Vincitore, pareggio e forzatura risultato
+8. Modalità Pattern (PT)
+  8.1 Selezione della forma (pattern)
+  8.2 Punteggio degli arbitri
+  8.3 LEVEL 0
+  8.4 TRAD.SPARRING
+  8.5 Vincitore e pareggio
+9. La finestra Display
+10. Risoluzione dei problemi
