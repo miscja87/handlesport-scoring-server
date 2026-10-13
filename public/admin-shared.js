@@ -1078,7 +1078,7 @@
                 codeBtn.innerHTML = `<span class="copy-icon">⧉</span> ${data.code ?? "CODE"}`;
             }
 
-            openAuthModal(refereeId, data.url);
+            openAuthModal(refereeId, data.url, data.code);
 
         } catch (err) {
             console.error("Referee auth error:", err);
@@ -1086,10 +1086,15 @@
         }
     }
 
-    function openAuthModal(refereeId, url) {
+    function openAuthModal(refereeId, url, code) {
         currentAuthRefereeId = refereeId;
         document.getElementById("authModalTitle").textContent = `Referee ${refereeId} link`;
         document.getElementById("authUrlInput").value = url;
+
+        // The code only exists for GLOBAL-mode links (returned by the backend
+        // alongside the URL) — hidden entirely in LOCAL mode.
+        document.getElementById("authCodeValue").textContent = code ?? "";
+        document.getElementById("authCodeBlock").classList.toggle("hidden", !code);
 
         const qrBox = document.getElementById("authQrBox");
         qrBox.innerHTML = "";
@@ -1115,7 +1120,6 @@
         const url = document.getElementById("authUrlInput").value;
         copyToClipboard(url, "Link copied to clipboard");
     }
-
     function markRefereeConnected(refereeId) {
         if (!refereeState[refereeId]) return;
         refereeState[refereeId].connected = true;

@@ -560,6 +560,27 @@ body {
     white-space: nowrap;
 }
 .auth-copy-btn:active { filter: brightness(1.2); }
+.auth-code-block {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.auth-code-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #8a93a8;
+}
+.auth-code-value {
+    font-size: 44px;
+    font-weight: 900;
+    letter-spacing: 10px;
+    padding-left: 10px; /* balances the trailing letter-spacing so the code looks centered */
+    color: #ffffff;
+    line-height: 1.1;
+}
 
 /* ── NAME EDIT MODAL (reuses .auth-modal shell) ── */
 .name-edit-input {
