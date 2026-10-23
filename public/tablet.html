@@ -176,6 +176,29 @@
             justify-content: center;
         }
 
+        /* ── LOGOUT CONFIRM ── */
+        .confirm-overlay {
+            align-items: center;
+            z-index: 95;
+        }
+        .confirm-box {
+            background: #1f2638;
+            width: 90%;
+            max-width: 380px;
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            color: white;
+            text-align: center;
+        }
+        .confirm-title { font-size: 20px; font-weight: 700; }
+        .confirm-text { font-size: 15px; color: #a0aab8; }
+        .confirm-actions { display: flex; gap: 10px; }
+        .confirm-actions .menu-item { flex: 1; justify-content: center; margin-top: 0; font-weight: 700; }
+        .confirm-ok { background: #c0392b; }
+
         .loading {
             position: fixed;
             inset: 0;
@@ -337,7 +360,21 @@
             <button class="menu-item" onclick="toggleFullscreen(); closeMenu();">
                 <span class="icon">⛶</span> Fullscreen
             </button>
+            <button class="menu-item" onclick="confirmLogout()">
+                <span class="icon">↪</span> Logout
+            </button>
             <button class="menu-item menu-cancel" onclick="closeMenu()">Cancel</button>
+        </div>
+    </div>
+
+    <div class="menu-overlay confirm-overlay hidden" id="logoutOverlay" onclick="if (event.target === this) closeLogout()">
+        <div class="confirm-box">
+            <div class="confirm-title">Logout?</div>
+            <div class="confirm-text">You will go back to the login screen.</div>
+            <div class="confirm-actions">
+                <button class="menu-item menu-cancel" onclick="closeLogout()">Cancel</button>
+                <button class="menu-item confirm-ok" onclick="logout()">Logout</button>
+            </div>
         </div>
     </div>
 
@@ -513,8 +550,19 @@
         }
     }
 
+    let stateInitialized = false;
+
     function applyState(newState) {
+        const wasPlaying = state === "play";
         state = newState;
+
+        // Sound only when scoring is really switched on or off, not for the
+        // first state read after loading the page
+        if (stateInitialized && wasPlaying !== (state === "play")) {
+            playStateSound(state === "play");
+        }
+        stateInitialized = true;
+
         const stateLabel = document.getElementById("stateLabel");
         if (state === "play") {
             stateLabel.textContent = "PLAY";
@@ -549,10 +597,11 @@
             showToast("Scoring blocked — offline");
             return;
         }
-        history[color].push(scores[color]);
-        scores[color] = Math.max(0, parseFloat((scores[color] + points).toFixed(1)));
+        const before = scores[color];
+        history[color].push(before);
+        scores[color] = Math.max(0, parseFloat((before + points).toFixed(1)));
         updateDisplay();
-        await sendScore();
+        await sendScore(scores[color] - before);
     }
 
     async function undoScore(color) {
@@ -568,9 +617,10 @@
             showToast("No actions to undo");
             return;
         }
+        const before = scores[color];
         scores[color] = history[color].pop();
         updateDisplay();
-        await sendScore();
+        await sendScore(scores[color] - before);
     }
 
     async function reload() {
@@ -578,13 +628,18 @@
         location.reload();
     }
 
-    async function sendScore() {
+    // `delta` is how much the score actually changed locally (after the 0
+    // floor); only add/undo pass it, so swapColors' re-send stays silent.
+    async function sendScore(delta) {
         let ok = false;
         try {
             // Not supported on iOS Safari (navigator.vibrate is undefined
             // there) — calling it unconditionally throws and skips the
             // fetch below entirely, which is why scores failed to send.
             if (navigator.vibrate) navigator.vibrate(100);
+
+            // Higher tone for points added, lower for undo / negative buttons
+            if (delta !== undefined) beep(delta >= 0 ? 880 : 440);
             const res = await fetch(`${serverBase}/api/score/referee/${referee}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -664,6 +719,86 @@
 
     function closeMenuOnBackdrop(event) {
         if (event.target.id === "menuOverlay") closeMenu();
+    }
+
+    // ── LOGOUT ──
+    // The tablets run a kiosk browser that starts at the handlesport.com
+    // login page, where the referee enters their code — which sends them back
+    // here (LOCAL) or to the global tablet. Nothing to clean up server side:
+    // the code stays valid, so the referee can log in again from there.
+    // replace() keeps the back button from reopening this page.
+    const LOGIN_URL = "https://www.handlesport.com/match/loginbycode";
+
+    function confirmLogout() {
+        closeMenu();
+        document.getElementById("logoutOverlay").classList.remove("hidden");
+    }
+
+    function closeLogout() {
+        document.getElementById("logoutOverlay").classList.add("hidden");
+    }
+
+    function logout() {
+        window.location.replace(LOGIN_URL);
+    }
+
+    // ── SOUND ──
+    // Short tones as feedback for the referee (Web Audio: no file to load,
+    // works offline). Browsers only allow sound after a user gesture, so the
+    // AudioContext is created (and resumed) on the first tap anywhere on the
+    // page. Nothing here may throw: beep() runs right before the score send
+    // in sendScore, which it must not be able to skip.
+    let audioCtx = null;
+
+    function unlockAudio() {
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            if (!audioCtx) audioCtx = new AudioCtx();
+            if (audioCtx.state === "suspended") audioCtx.resume();
+        } catch (err) {
+            // sound is only a nicety
+        }
+    }
+    document.addEventListener("touchend", unlockAudio);
+    document.addEventListener("click", unlockAudio);
+
+    // tones: [[frequency, startOffsetSeconds, durationSeconds], ...]
+    function playTones(tones) {
+        try {
+            unlockAudio();
+            if (!audioCtx) return;
+
+            const now = audioCtx.currentTime;
+            tones.forEach(([frequency, offset, duration]) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = "sine";
+                osc.frequency.value = frequency;
+                gain.gain.setValueAtTime(0.3, now + offset);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + offset + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now + offset);
+                osc.stop(now + offset + duration + 0.01);
+            });
+        } catch (err) {
+            // sound is only a nicety
+        }
+    }
+
+    function beep(frequency) {
+        playTones([[frequency, 0, 0.08]]);
+    }
+
+    // START: two quick rising tones; STOP: one longer low tone. Only played
+    // when the audio is already unlocked, otherwise a tone queued while the
+    // context is suspended would sound late, at the next tap.
+    function playStateSound(playing) {
+        if (!audioCtx || audioCtx.state !== "running") return;
+        playTones(playing
+            ? [[700, 0, 0.12], [1000, 0.14, 0.12]]
+            : [[300, 0, 0.4]]);
     }
 
     // ── UI HELPERS ──
