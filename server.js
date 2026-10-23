@@ -364,9 +364,11 @@ app.delete("/api/score/referee/:id", async (req, res) => {
 // Clears the referee's match score token on the handlesport.com backend —
 // removes the MySQL record tied to their auth — and deletes their Firestore
 // doc. Wired up from the referee card's "CLEAR TOKEN" button (admin-shared.js),
-// both modes: called unconditionally (it responds ok even when there's no
-// MySQL token to clear in LOCAL mode) since LOCAL referees still get a
-// Firestore doc (created at /api/login/referee) that's worth clearing too.
+// both modes: called unconditionally. In LOCAL it clears the record that
+// /scoring/auth saved for the referee's login code (it also responds ok when
+// there's nothing to clear, e.g. the link was generated without a code), and
+// LOCAL referees still get a Firestore doc (created at /api/login/referee)
+// that's worth clearing too.
 app.post("/api/referee/clear-token/:refereeId", async (req, res) => {
 
     validate(res, event, ring);
@@ -482,13 +484,25 @@ app.get("/api/tablet/url/:refereeId", async (req, res) => {
     const referee = currentScores?.[refereeId];
     if (!referee) return res.status(404).json({ error: `Referee ${refereeId} not found` });
 
-    // GLOBAL mode: the referee needs a link that works from any network, so
-    // instead of pointing at this machine's LAN address we ask the backend
-    // for a handlesport.com URL (backed by its own auth, not our local
-    // token) — the referee's tablet talks to Firestore/handlesport.com
-    // directly from there, never to this server.
-    if (isGlobalMode) {
-        try {
+    // Both modes register the referee with the backend (POST /scoring/auth),
+    // which saves the record and generates the 5-character code the tablets
+    // type in at https://www.handlesport.com/match/loginbycode (the kiosk
+    // browser's start page). The code is then resolved to the right link:
+    //  - GLOBAL: no `url` is sent, the backend answers with its own public
+    //    handlesport.com link (valid from any network; the referee's tablet
+    //    talks to Firestore/handlesport.com directly, never to this server).
+    //  - LOCAL: `url` carries this machine's tablet link (LAN address +
+    //    token), which the backend stores and redirects to for that code.
+    //    The QR keeps pointing straight at that same link, so if the backend
+    //    call fails the referee can still connect — just without a code.
+    // The LAN address is re-read on every call (not the startup LOCAL_IP) so
+    // a link generated after the network changed doesn't carry a stale IP.
+    const localUrl = `http://${getLocalIP() || LOCAL_IP}:${PORT}/tablet/${refereeId}?token=${referee.token}`;
+
+    try {
+        const startScore = SPECIALTY_CONFIGURATION[specialtyCode].startScore;
+
+        if (isGlobalMode) {
             // The referee's Firestore doc might not exist yet at this point
             // (nothing else has created it in GLOBAL mode) — make sure it's
             // there with the specialty's real start score before handing
@@ -496,43 +510,54 @@ app.get("/api/tablet/url/:refereeId", async (req, res) => {
             // a doc that doesn't exist. Only creates it if missing, so
             // re-generating the link for an already-connected referee
             // doesn't reset their live score/status.
-            const startScore = SPECIALTY_CONFIGURATION[specialtyCode].startScore;
             await ensureRefereeDoc(event, ring, refereeId, { red: startScore, blue: startScore });
+        }
 
-            const bodyParams = new URLSearchParams({
-                id_event: event,
-                id_ring: ring,
-                id_referee: refereeId,
-                specialty: specialtyCode,
-                start_score: startScore,
-                buttons: SPECIALTY_CONFIGURATION[specialtyCode].buttons.join(","),
-                default_button: SPECIALTY_CONFIGURATION[specialtyCode].defaultButton,
-                new: true
-            });
+        const bodyParams = new URLSearchParams({
+            id_event: event,
+            id_ring: ring,
+            id_referee: refereeId,
+            specialty: specialtyCode,
+            start_score: startScore,
+            buttons: SPECIALTY_CONFIGURATION[specialtyCode].buttons.join(","),
+            default_button: SPECIALTY_CONFIGURATION[specialtyCode].defaultButton,
+            new: true
+        });
+        if (!isGlobalMode) bodyParams.set("url", localUrl);
 
-            const response = await fetch(`${HANDLESPORT_BACKEND_URL}/scoring/auth`, {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded", token: jwtToken },
-                body: bodyParams.toString()
-            });
+        const response = await fetch(`${HANDLESPORT_BACKEND_URL}/scoring/auth`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded", token: jwtToken },
+            body: bodyParams.toString()
+        });
 
-            const data = await response.json();
+        const data = await response.json();
 
+        if (isGlobalMode) {
             if (!response.ok || data.result !== "success" || !data.url) {
                 return res.status(response.status || 500).json({ ok: false, error: "Failed to generate global referee link", raw: data });
             }
 
             return res.json({ ok: true, refereeId, url: data.url, code: data.code });
+        }
 
-        } catch (err) {
+        if (response.ok && data.result === "success") {
+            return res.json({ ok: true, refereeId, url: localUrl, code: data.code });
+        }
+
+        console.error("Backend rejected the LOCAL referee link registration:", data);
+
+    } catch (err) {
+        if (isGlobalMode) {
             console.error("Failed to fetch global referee auth URL:", err);
             return res.status(500).json({ ok: false, error: "Failed to generate global referee link" });
         }
+
+        console.error("Failed to register the LOCAL referee link with the backend:", err);
     }
 
-    const url = `http://${LOCAL_IP}:${PORT}/tablet/${refereeId}?token=${referee.token}`;
-
-    res.json({ ok: true, refereeId, url });
+    // LOCAL fallback: the link itself is fine, only the login code is missing.
+    res.json({ ok: true, refereeId, url: localUrl, codeUnavailable: true });
 });
 
 // ── MATCH ──

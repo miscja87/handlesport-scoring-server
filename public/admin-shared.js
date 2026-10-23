@@ -1064,7 +1064,7 @@
             if (!data.ok || !data.url) throw new Error("Invalid response");
 
             refereeState[refereeId].url = data.url;
-            refereeState[refereeId].code = data.code; // GLOBAL mode only
+            refereeState[refereeId].code = data.code ?? null; // null if the backend couldn't generate one (LOCAL fallback)
 
             const urlBtn = document.getElementById(`refUrl${refereeId}`);
             if (urlBtn) {
@@ -1080,6 +1080,10 @@
 
             openAuthModal(refereeId, data.url, data.code);
 
+            if (data.codeUnavailable) {
+                showToast("Login code unavailable — use the QR code or the link");
+            }
+
         } catch (err) {
             console.error("Referee auth error:", err);
             showErrorModal("Authentication failed", `Could not generate the link for Referee ${refereeId}. Please check the server connection and try again.`);
@@ -1091,8 +1095,10 @@
         document.getElementById("authModalTitle").textContent = `Referee ${refereeId} link`;
         document.getElementById("authUrlInput").value = url;
 
-        // The code only exists for GLOBAL-mode links (returned by the backend
-        // alongside the URL) — hidden entirely in LOCAL mode.
+        // The code (returned by the backend alongside the URL) is what the
+        // tablets type in at the kiosk's loginbycode page — hidden when the
+        // backend didn't provide one (LOCAL link generated while it was
+        // unreachable).
         document.getElementById("authCodeValue").textContent = code ?? "";
         document.getElementById("authCodeBlock").classList.toggle("hidden", !code);
 
