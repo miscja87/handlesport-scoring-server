@@ -1,6 +1,6 @@
 {
     "name": "handlesport",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "HandleSport Scoring System",
     "author": "Mikhail Vorontsov",
     "main": "main.cjs",
