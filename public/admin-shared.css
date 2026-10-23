@@ -531,7 +531,8 @@ body {
     align-items: center;
     justify-content: center;
 }
-.auth-qr-box canvas { display: block; }
+.auth-qr-box canvas,
+.auth-qr-box img { display: block; }
 .auth-url-row {
     display: flex;
     gap: 8px;

@@ -1090,25 +1090,48 @@
         }
     }
 
+    // Pre-generated QR of https://www.handlesport.com/match/loginbycode — the
+    // entry point of every referee tablet (the kiosk browser starts there
+    // too): the referee scans it and types in their 5-character code, which
+    // the backend resolves to the right page (public link in GLOBAL, this
+    // machine's tablet link in LOCAL). Also available as .svg for printing.
+    const LOGIN_BY_CODE_QR = "/images/qr-loginbycode.png";
+
     function openAuthModal(refereeId, url, code) {
         currentAuthRefereeId = refereeId;
-        document.getElementById("authModalTitle").textContent = `Referee ${refereeId} link`;
+        document.getElementById("authModalTitle").textContent = `Referee ${refereeId} login`;
+
+        // The link row always shows the referee's own link, as before.
         document.getElementById("authUrlInput").value = url;
 
         // The code (returned by the backend alongside the URL) is what the
-        // tablets type in at the kiosk's loginbycode page — hidden when the
-        // backend didn't provide one (LOCAL link generated while it was
-        // unreachable).
+        // referee types in at loginbycode.
         document.getElementById("authCodeValue").textContent = code ?? "";
         document.getElementById("authCodeBlock").classList.toggle("hidden", !code);
 
         const qrBox = document.getElementById("authQrBox");
         qrBox.innerHTML = "";
-        const canvas = document.createElement("canvas");
-        qrBox.appendChild(canvas);
-        QRCode.toCanvas(canvas, url, { width: 220, margin: 1 }, (err) => {
-            if (err) console.error("QR generation error:", err);
-        });
+
+        if (code) {
+            // Normal case: the same fixed QR for every referee (no library
+            // needed, works offline); only the code differs.
+            const img = document.createElement("img");
+            img.src = LOGIN_BY_CODE_QR;
+            img.alt = "QR code to the login page";
+            img.width = 220;
+            img.height = 220;
+            qrBox.appendChild(img);
+        } else {
+            // Fallback — the backend didn't give us a code (LOCAL link
+            // generated while it was unreachable): a loginbycode QR would
+            // lead nowhere, so the QR/link point straight at the tablet
+            // page like before.
+            const canvas = document.createElement("canvas");
+            qrBox.appendChild(canvas);
+            QRCode.toCanvas(canvas, url, { width: 220, margin: 1 }, (err) => {
+                if (err) console.error("QR generation error:", err);
+            });
+        }
 
         document.getElementById("authModalOverlay").classList.remove("hidden");
     }
